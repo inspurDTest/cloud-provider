@@ -18,9 +18,9 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	nodeconfigv1alpha1 "k8s.io/cloud-provider/controllers/node/config/v1alpha1"
-	serviceconfigv1alpha1 "k8s.io/cloud-provider/controllers/service/config/v1alpha1"
-	endpointsliceconfigv1alpha1 "k8s.io/cloud-provider/controllers/endpointslice/config/v1alpha1"
+	nodeconfigv1alpha1 "github.com/inspurDTest/cloud-provider/controllers/node/config/v1alpha1"
+	serviceconfigv1alpha1 "github.com/inspurDTest/cloud-provider/controllers/service/config/v1alpha1"
+	endpointsliceconfigv1alpha1 "github.com/inspurDTest/cloud-provider/controllers/endpointslice/config/v1alpha1"
 	cmconfigv1alpha1 "k8s.io/controller-manager/config/v1alpha1"
 )
 

@@ -106,7 +106,7 @@ func DisableWarningForProvider(providerName string) {
 	for _, provider := range deprecatedCloudProviders {
 		if provider.name == providerName {
 			klog.Infof("INFO: Please make sure you are running external cloud controller manager binary for provider %q."+
-				"In-tree cloud providers are currently disabled. Refer to https://github.com/kubernetes/kubernetes/tree/master/staging/src/k8s.io/cloud-provider/sample"+
+				"In-tree cloud providers are currently disabled. Refer to https://github.com/kubernetes/kubernetes/tree/master/staging/src/github.com/inspurDTest/cloud-provider/sample"+
 				"for example implementation.", providerName)
 			detail := fmt.Sprintf("Please reach to sig-cloud-provider and use 'external' cloud provider for %q: %s", providerName, provider.detail)
 			klog.Warningf("WARNING: %q built-in cloud provider is now disabled. %s", providerName, detail)

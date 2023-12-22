@@ -22,8 +22,8 @@ import (
 	clientset "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider/config"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	"github.com/inspurDTest/cloud-provider/config"
 )
 
 // Config is the main context object for the cloud controller manager.

@@ -18,7 +18,7 @@ package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/conversion"
-	cpconfig "k8s.io/cloud-provider/config"
+	cpconfig "github.com/inspurDTest/cloud-provider/config"
 )
 
 // Important! The public back-and-forth conversion functions for the types in this generic

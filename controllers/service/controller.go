@@ -42,10 +42,10 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider/api"
-	endpointhelper "k8s.io/cloud-provider/endpointslice/helpers"
-	servicehelper "k8s.io/cloud-provider/service/helpers"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	"github.com/inspurDTest/cloud-provider/api"
+	endpointhelper "github.com/inspurDTest/cloud-provider/endpointslice/helpers"
+	servicehelper "github.com/inspurDTest/cloud-provider/service/helpers"
 	"k8s.io/component-base/featuregate"
 	controllersmetrics "k8s.io/component-base/metrics/prometheus/controllers"
 	"k8s.io/controller-manager/pkg/features"
@@ -141,7 +141,7 @@ func New(
 		nodeQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "node"),
 		lastSyncedNodes:    make(map[string][]*v1.Node),
 	}
-	kubeClient.CoreV1().Namespaces().Get()
+
 	serviceInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(cur interface{}) {

@@ -30,8 +30,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apiserver/pkg/server/mux"
-	cloudprovider "k8s.io/cloud-provider"
-	"k8s.io/cloud-provider/app/config"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	"github.com/inspurDTest/cloud-provider/app/config"
 	genericcontrollermanager "k8s.io/controller-manager/app"
 	"k8s.io/klog/v2"
 )
