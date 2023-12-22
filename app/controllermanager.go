@@ -438,6 +438,13 @@ func StartRouteControllerWrapper(initContext ControllerInitContext, completedCon
 	}
 }
 
+// StartEndpointSliceWrapper is used to take cloud config as input and start endpointslice controller
+func StartEndpointSliceControllerWrapper(initContext ControllerInitContext, completedConfig *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface) InitFunc {
+	return func(ctx context.Context, controllerContext genericcontrollermanager.ControllerContext) (controller.Interface, bool, error) {
+		return startEndpointSliceController(ctx, initContext, controllerContext, completedConfig, cloud)
+	}
+}
+
 // DefaultInitFuncConstructors is a map of default named controller groups paired with InitFuncConstructor
 var DefaultInitFuncConstructors = map[string]ControllerInitFuncConstructor{
 	// The cloud-node controller shares the "node-controller" identity with the cloud-node-lifecycle
@@ -467,6 +474,14 @@ var DefaultInitFuncConstructors = map[string]ControllerInitFuncConstructor{
 		},
 		Constructor: StartRouteControllerWrapper,
 	},
+
+	names.EndpointSliceController: {
+		InitContext: ControllerInitContext{
+			ClientName: "endpointslice-controller",
+		},
+		Constructor: StartEndpointSliceControllerWrapper,
+	},
+
 }
 
 // CreateControllerContext creates a context struct containing references to resources needed by the

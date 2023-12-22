@@ -25,6 +25,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/runtime"
@@ -32,15 +33,18 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	discoveryinformers "k8s.io/client-go/informers/discovery/v1"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
+	discoverylisters "k8s.io/client-go/listers/discovery/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/api"
+	endpointhelper "k8s.io/cloud-provider/endpointslice/helpers"
 	servicehelper "k8s.io/cloud-provider/service/helpers"
 	"k8s.io/component-base/featuregate"
 	controllersmetrics "k8s.io/component-base/metrics/prometheus/controllers"
@@ -51,6 +55,10 @@ import (
 const (
 	// Interval of synchronizing service status from apiserver
 	serviceSyncPeriod = 30 * time.Second
+
+	// Interval of synchronizing endpointSlice status from apiserver
+	endpointSliceSyncPeriod = 30 * time.Second
+
 	// Interval of synchronizing node status from apiserver
 	nodeSyncPeriod = 100 * time.Second
 
@@ -62,6 +70,8 @@ const (
 	// ToBeDeletedTaint is a taint used by the CLuster Autoscaler before marking a node for deletion. Defined in
 	// https://github.com/kubernetes/autoscaler/blob/e80ab518340f88f364fe3ef063f8303755125971/cluster-autoscaler/utils/deletetaint/delete.go#L36
 	ToBeDeletedTaint = "ToBeDeletedByClusterAutoscaler"
+
+	KubernetesServiceName = "kubernetes.io/service-name"
 )
 
 type cachedService struct {
@@ -82,16 +92,19 @@ type Controller struct {
 	clusterName string
 	balancer    cloudprovider.LoadBalancer
 	// TODO(#85155): Stop relying on this and remove the cache completely.
-	cache               *serviceCache
-	serviceLister       corelisters.ServiceLister
-	serviceListerSynced cache.InformerSynced
-	eventBroadcaster    record.EventBroadcaster
-	eventRecorder       record.EventRecorder
-	nodeLister          corelisters.NodeLister
-	nodeListerSynced    cache.InformerSynced
+	cache                     *serviceCache
+	serviceLister             corelisters.ServiceLister
+	endpointSliceLister       discoverylisters.EndpointSliceLister
+	serviceListerSynced       cache.InformerSynced
+	endpointSliceListerSynced cache.InformerSynced
+	eventBroadcaster          record.EventBroadcaster
+	eventRecorder             record.EventRecorder
+	nodeLister                corelisters.NodeLister
+	nodeListerSynced          cache.InformerSynced
 	// services and nodes that need to be synced
-	serviceQueue workqueue.RateLimitingInterface
-	nodeQueue    workqueue.RateLimitingInterface
+	serviceQueue       workqueue.RateLimitingInterface
+	endpointsliceQueue workqueue.RateLimitingInterface
+	nodeQueue          workqueue.RateLimitingInterface
 	// lastSyncedNodes is used when reconciling node state and keeps track of
 	// the last synced set of nodes per service key. This is accessed from the
 	// service and node controllers, hence it is protected by a lock.
@@ -105,6 +118,7 @@ func New(
 	cloud cloudprovider.Interface,
 	kubeClient clientset.Interface,
 	serviceInformer coreinformers.ServiceInformer,
+	endpointSliceInformer discoveryinformers.EndpointSliceInformer,
 	nodeInformer coreinformers.NodeInformer,
 	clusterName string,
 	featureGate featuregate.FeatureGate,
@@ -114,19 +128,20 @@ func New(
 
 	registerMetrics()
 	s := &Controller{
-		cloud:            cloud,
-		kubeClient:       kubeClient,
-		clusterName:      clusterName,
-		cache:            &serviceCache{serviceMap: make(map[string]*cachedService)},
-		eventBroadcaster: broadcaster,
-		eventRecorder:    recorder,
-		nodeLister:       nodeInformer.Lister(),
-		nodeListerSynced: nodeInformer.Informer().HasSynced,
-		serviceQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "service"),
-		nodeQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "node"),
-		lastSyncedNodes:  make(map[string][]*v1.Node),
+		cloud:              cloud,
+		kubeClient:         kubeClient,
+		clusterName:        clusterName,
+		cache:              &serviceCache{serviceMap: make(map[string]*cachedService)},
+		eventBroadcaster:   broadcaster,
+		eventRecorder:      recorder,
+		nodeLister:         nodeInformer.Lister(),
+		nodeListerSynced:   nodeInformer.Informer().HasSynced,
+		serviceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "service"),
+		endpointsliceQueue: workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "endpointslice"),
+		nodeQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "node"),
+		lastSyncedNodes:    make(map[string][]*v1.Node),
 	}
-
+	kubeClient.CoreV1().Namespaces().Get()
 	serviceInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(cur interface{}) {
@@ -151,6 +166,31 @@ func New(
 	)
 	s.serviceLister = serviceInformer.Lister()
 	s.serviceListerSynced = serviceInformer.Informer().HasSynced
+
+	endpointSliceInformer.Informer().AddEventHandlerWithResyncPeriod(
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(cur interface{}) {
+				eps, ok := cur.(*discoveryv1.EndpointSlice)
+				// Check cleanup here can provide a remedy when controller failed to handle
+				// changes before it exiting (e.g. crashing, restart, etc.).
+				if ok && epsHaveServiceName(eps) {
+					s.enqueueService(eps.Labels[KubernetesServiceName])
+				}
+			},
+			UpdateFunc: func(old, cur interface{}) {
+				oldEps, ok1 := old.(*discoveryv1.EndpointSlice)
+				curEps, ok2 := cur.(*discoveryv1.EndpointSlice)
+				if ok1 && ok2 && (s.epsNeedsUpdate(oldEps, curEps) || epsNeedsCleanup(curEps)) {
+					s.enqueueService(cur)
+				}
+			},
+			// No need to handle deletion event because the deletion would be handled by
+			// the update path when the deletion timestamp is added.
+		},
+		endpointSliceSyncPeriod,
+	)
+	s.endpointSliceLister = endpointSliceInformer.Lister()
+	s.endpointSliceListerSynced = endpointSliceInformer.Informer().HasSynced
 
 	nodeInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
@@ -318,7 +358,7 @@ func (c *Controller) init() error {
 
 // processServiceCreateOrUpdate operates loadbalancers for the incoming service accordingly.
 // Returns an error if processing the service update failed.
-func (c *Controller) processServiceCreateOrUpdate(ctx context.Context, service *v1.Service, key string) error {
+func (c *Controller) processServiceCreateOrUpdate(ctx context.Context, service *v1.Service, key string, endpointSlices []*discoveryv1.EndpointSlice) error {
 	// TODO(@MrHohn): Remove the cache once we get rid of the non-finalizer deletion
 	// path. Ref https://github.com/kubernetes/enhancements/issues/980.
 	cachedService := c.cache.getOrCreate(key)
@@ -333,7 +373,7 @@ func (c *Controller) processServiceCreateOrUpdate(ctx context.Context, service *
 	// Always cache the service, we need the info for service deletion in case
 	// when load balancer cleanup is not handled via finalizer.
 	cachedService.state = service
-	op, err := c.syncLoadBalancerIfNeeded(ctx, service, key)
+	op, err := c.syncLoadBalancerIfNeeded(ctx, service, key, endpointSlices)
 	if err != nil {
 		c.eventRecorder.Eventf(service, v1.EventTypeWarning, "SyncLoadBalancerFailed", "Error syncing load balancer: %v", err)
 		return err
@@ -357,7 +397,7 @@ const (
 // syncLoadBalancerIfNeeded ensures that service's status is synced up with loadbalancer
 // i.e. creates loadbalancer for service if requested and deletes loadbalancer if the service
 // doesn't want a loadbalancer no more. Returns whatever error occurred.
-func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.Service, key string) (loadBalancerOperation, error) {
+func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.Service, key string, endpointSlices []*discoveryv1.EndpointSlice) (loadBalancerOperation, error) {
 	// Note: It is safe to just call EnsureLoadBalancer.  But, on some clouds that requires a delete & create,
 	// which may involve service interruption.  Also, we would like user-friendly events.
 
@@ -365,8 +405,8 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	previousStatus := service.Status.LoadBalancer.DeepCopy()
 	var newStatus *v1.LoadBalancerStatus
 	var op loadBalancerOperation
-	var err error
 
+	// service 删除操作
 	if !wantsLoadBalancer(service) || needsCleanup(service) {
 		// Delete the load balancer if service no longer wants one, or if service needs cleanup.
 		op = deleteLoadBalancer
@@ -378,6 +418,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		if exists {
 			klog.V(2).Infof("Deleting existing load balancer for service %s", key)
 			c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
+			// TODO 此处不删掉loadbalance
 			if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service); err != nil {
 				if err == cloudprovider.ImplementedElsewhere {
 					klog.V(4).Infof("LoadBalancer for service %s implemented by a different controller %s, Ignoring error on deletion", key, c.cloud.ProviderName())
@@ -391,8 +432,10 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		if err := c.removeFinalizer(service); err != nil {
 			return op, fmt.Errorf("failed to remove load balancer cleanup finalizer: %v", err)
 		}
+
 		c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletedLoadBalancer", "Deleted load balancer")
 	} else {
+		// service创建、更新操作
 		// Create or update the load balancer if service wants one.
 		op = ensureLoadBalancer
 		klog.V(2).Infof("Ensuring load balancer for service %s", key)
@@ -402,7 +445,26 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		if err := c.addFinalizer(service); err != nil {
 			return op, fmt.Errorf("failed to add load balancer cleanup finalizer: %v", err)
 		}
-		newStatus, err = c.ensureLoadBalancer(ctx, service)
+
+		if err := c.addFinalizer(service); err != nil {
+			return op, fmt.Errorf("failed to add load balancer cleanup finalizer: %v", err)
+		}
+
+		// 王玉东 remove eps's  finalizer,when eps  belong to service
+		epsLablelSelector := labels.Set(map[string]string{
+			discoveryv1.LabelServiceName: service.Name,
+		}).AsSelectorPreValidated()
+		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
+		if err != nil {
+			return op, fmt.Errorf("syncLoadBalancerIfNeeded: failed to get endpoints : %v", err)
+		}
+		for _, eps := range epss {
+			if err := c.addEndpointSliceFinalizer(eps); err != nil {
+				return op, fmt.Errorf("syncLoadBalancerIfNeeded: failed to add endpoints finalizer: %v", err)
+			}
+		}
+
+		newStatus, err = c.ensureLoadBalancer(ctx, service, endpointSlices)
 		if err != nil {
 			if err == cloudprovider.ImplementedElsewhere {
 				// ImplementedElsewhere indicates that the ensureLoadBalancer is a nop and the
@@ -420,6 +482,10 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 
 		c.eventRecorder.Event(service, v1.EventTypeNormal, "EnsuredLoadBalancer", "Ensured load balancer")
 	}
+	// eps更新和删除等变化与service非强相关，故service增删改都可能导致eps删除
+	if err := c.removeEndpointSliceFinalizerByService(service); err != nil {
+		return op, err
+	}
 
 	if err := c.patchStatus(service, previousStatus, newStatus); err != nil {
 		// Only retry error that isn't not found:
@@ -434,7 +500,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	return op, nil
 }
 
-func (c *Controller) ensureLoadBalancer(ctx context.Context, service *v1.Service) (*v1.LoadBalancerStatus, error) {
+func (c *Controller) ensureLoadBalancer(ctx context.Context, service *v1.Service, endpointSlices []*discoveryv1.EndpointSlice) (*v1.LoadBalancerStatus, error) {
 	nodes, err := listWithPredicates(c.nodeLister, getNodePredicatesForService(service)...)
 	if err != nil {
 		return nil, err
@@ -446,7 +512,7 @@ func (c *Controller) ensureLoadBalancer(ctx context.Context, service *v1.Service
 	c.storeLastSyncedNodes(service, nodes)
 	// - Not all cloud providers support all protocols and the next step is expected to return
 	//   an error for unsupported protocols
-	status, err := c.balancer.EnsureLoadBalancer(ctx, c.clusterName, service, nodes)
+	status, err := c.balancer.EnsureLoadBalancer(ctx, c.clusterName, service, nodes, endpointSlices)
 	if err != nil {
 		return nil, err
 	}
@@ -549,6 +615,27 @@ func needsCleanup(service *v1.Service) bool {
 	return false
 }
 
+// epsNeedsCleanup checks if load balancer needs to be cleaned up as indicated by finalizer.
+func epsNeedsCleanup(eps *discoveryv1.EndpointSlice) bool {
+	if !endpointhelper.HasLBFinalizer(eps) {
+		return false
+	}
+
+	if eps.ObjectMeta.DeletionTimestamp != nil {
+		return true
+	}
+
+	// TODO 是否判断其他资源信息
+	return false
+}
+
+func epsHaveServiceName(eps *discoveryv1.EndpointSlice) bool {
+	if len(eps.Labels) > 0 && len(eps.Labels[KubernetesServiceName]) > 0 {
+		return true
+	}
+	return false
+}
+
 // needsUpdate checks if load balancer needs to be updated due to change in attributes.
 func (c *Controller) needsUpdate(oldService *v1.Service, newService *v1.Service) bool {
 	if !wantsLoadBalancer(oldService) && !wantsLoadBalancer(newService) {
@@ -617,6 +704,26 @@ func (c *Controller) needsUpdate(oldService *v1.Service, newService *v1.Service)
 			len(oldService.Spec.IPFamilies), len(newService.Spec.IPFamilies))
 		return true
 	}
+
+	return false
+}
+
+// needsUpdate checks if load balancer needs to be updated due to change in attributes.
+func (c *Controller) epsNeedsUpdate(oldEps *discoveryv1.EndpointSlice, newEps *discoveryv1.EndpointSlice) bool {
+
+	// 排除非ipv4、ipv6类型
+	if !supportIpProtocol(oldEps) && !supportIpProtocol(newEps) {
+		return false
+	}
+
+	// AddressType、Ports、Endpoints有一个变化则需要改动lb的memeber
+	if !reflect.DeepEqual(oldEps.AddressType, newEps.AddressType) ||
+		!reflect.DeepEqual(oldEps.Ports, newEps.Ports) ||
+		!reflect.DeepEqual(oldEps.Endpoints, newEps.Endpoints) {
+		return true
+	}
+
+	// TODO 是否需要在eps添加注解
 
 	return false
 }
@@ -869,6 +976,11 @@ func (c *Controller) lockedUpdateLoadBalancerHosts(service *v1.Service, hosts []
 	return err
 }
 
+func supportIpProtocol(eps *discoveryv1.EndpointSlice) bool {
+	// if LoadBalancerClass is set, the user does not want the default cloud-provider Load Balancer
+	return eps.AddressType != discoveryv1.AddressTypeIPv4 || eps.AddressType != discoveryv1.AddressTypeIPv6
+}
+
 func wantsLoadBalancer(service *v1.Service) bool {
 	// if LoadBalancerClass is set, the user does not want the default cloud-provider Load Balancer
 	return service.Spec.Type == v1.ServiceTypeLoadBalancer && service.Spec.LoadBalancerClass == nil
@@ -901,10 +1013,17 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 	case err != nil:
 		runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
 	default:
+		epsLablelSelector := labels.Set(map[string]string{
+			discoveryv1.LabelServiceName: service.Name,
+		}).AsSelectorPreValidated()
+		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
+		if err != nil {
+			return fmt.Errorf("syncService: failed to get endpoints : %v", err)
+		}
 		// It is not safe to modify an object returned from an informer.
 		// As reconcilers may modify the service object we need to copy
 		// it first.
-		err = c.processServiceCreateOrUpdate(ctx, service.DeepCopy(), key)
+		err = c.processServiceCreateOrUpdate(ctx, service.DeepCopy(), key, epss)
 	}
 
 	return err
@@ -956,6 +1075,20 @@ func (c *Controller) addFinalizer(service *v1.Service) error {
 	return err
 }
 
+// addFinalizer patches the service to add finalizer.
+func (c *Controller) addEndpointSliceFinalizer(endpointslice *discoveryv1.EndpointSlice) error {
+	if endpointhelper.HasLBFinalizer(endpointslice) {
+		return nil
+	}
+	// Make a copy so we don't mutate the shared informer cache.
+	updated := endpointslice.DeepCopy()
+	updated.ObjectMeta.Finalizers = append(updated.ObjectMeta.Finalizers, endpointhelper.LoadBalancerCleanupFinalizer)
+
+	klog.V(2).Infof("Adding finalizer to service %s/%s", updated.Namespace, updated.Name)
+	_, err := endpointhelper.PatchEndpointSlice(c.kubeClient.DiscoveryV1(), endpointslice, updated)
+	return err
+}
+
 // removeFinalizer patches the service to remove finalizer.
 func (c *Controller) removeFinalizer(service *v1.Service) error {
 	if !servicehelper.HasLBFinalizer(service) {
@@ -969,6 +1102,42 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 	klog.V(2).Infof("Removing finalizer from service %s/%s", updated.Namespace, updated.Name)
 	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
 	return err
+}
+
+// TODO 处理remove endpointslice的finalizer
+// removeEndpointSliceFinalizer patches the endpointslice to remove finalizer.
+func (c *Controller) removeEndpointSliceFinalizer(endpointslice *discoveryv1.EndpointSlice) error {
+	if endpointhelper.HasLBFinalizer(endpointslice) {
+		return nil
+	}
+
+	// Make a copy so we don't mutate the shared informer cache.
+	updated := endpointslice.DeepCopy()
+	updated.ObjectMeta.Finalizers = removeString(updated.ObjectMeta.Finalizers, endpointhelper.LoadBalancerCleanupFinalizer)
+
+	klog.V(2).Infof("Removing finalizer from endpointslice %s/%s", updated.Namespace, updated.Name)
+	_, err := endpointhelper.PatchEndpointSlice(c.kubeClient.DiscoveryV1(), endpointslice, updated)
+	return err
+}
+
+// removeEndpointSliceFinalizer patches the endpointslice to remove finalizer.
+func (c *Controller) removeEndpointSliceFinalizerByService(service *v1.Service) error {
+	// 王玉东 remove eps's  finalizer,when eps  belong to service
+	epsLablelSelector := labels.Set(map[string]string{
+		discoveryv1.LabelServiceName: service.Name,
+	}).AsSelectorPreValidated()
+	epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
+	if err != nil {
+		return fmt.Errorf("syncLoadBalancerIfNeeded: failed to get endpoints : %v", err)
+	}
+	for _, eps := range epss {
+		if epsNeedsCleanup(eps) {
+			if err := c.removeEndpointSliceFinalizer(eps); err != nil {
+				return fmt.Errorf("failed to remove endpoints finalizer: %v", err)
+			}
+		}
+	}
+	return nil
 }
 
 // removeString returns a newly created []string that contains all items from slice that

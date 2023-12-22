@@ -23,10 +23,11 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	discoveryv1client "k8s.io/client-go/kubernetes/typed/discovery/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
-	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	utilnet "k8s.io/utils/net"
 )
 
@@ -41,7 +42,7 @@ const (
 	// LoadBalancerCleanupFinalizer is the finalizer added to load balancer
 	// services to ensure the Service resource is not fully deleted until
 	// the correlating load balancer resources are deleted.
-	LoadBalancerCleanupFinalizer = "service.kubernetes.io/load-balancer-cleanup"
+	LoadBalancerCleanupFinalizer = "endpointslice.kubernetes.io/load-balancer-cleanup"
 )
 
 // IsAllowAll checks whether the utilnet.IPNet allows traffic from 0.0.0.0/0
@@ -112,9 +113,9 @@ func NeedsHealthCheck(service *v1.Service) bool {
 	return RequestsOnlyLocalTraffic(service)
 }
 
-// HasLBFinalizer checks if service contains LoadBalancerCleanupFinalizer.
-func HasLBFinalizer(service *v1.Service) bool {
-	for _, finalizer := range service.ObjectMeta.Finalizers {
+// HasLBFinalizer checks if endpointSlice contains LoadBalancerCleanupFinalizer.
+func HasLBFinalizer(eps *discoveryv1.EndpointSlice) bool {
+	for _, finalizer := range eps.ObjectMeta.Finalizers {
 		if finalizer == LoadBalancerCleanupFinalizer {
 			return true
 		}
@@ -138,19 +139,16 @@ func LoadBalancerStatusEqual(l, r *v1.LoadBalancerStatus) bool {
 	return ingressSliceEqual(l.Ingress, r.Ingress)
 }
 
-// PatchService patches the given service's Status or ObjectMeta based on the original and
+// PatchEndpointSlice patches the given endpointSlice's Status or ObjectMeta based on the original and
 // updated ones. Change to spec will be ignored.
-func PatchService(c corev1.CoreV1Interface, oldSvc, newSvc *v1.Service) (*v1.Service, error) {
+func PatchEndpointSlice(c discoveryv1client.DiscoveryV1Interface, oldEps, newEps *discoveryv1.EndpointSlice) (*discoveryv1.EndpointSlice, error) {
 	// Reset spec to make sure only patch for Status or ObjectMeta.
-	newSvc.Spec = oldSvc.Spec
-
-	patchBytes, err := getPatchBytes(oldSvc, newSvc)
+	patchBytes, err := epsGetPatchBytes(oldEps, newEps)
 	if err != nil {
 		return nil, err
 	}
 
-	return c.Services(oldSvc.Namespace).Patch(context.TODO(), oldSvc.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{}, "status")
-
+	return c.EndpointSlices(oldEps.Namespace).Patch(context.TODO(), oldEps.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{}, "")
 }
 
 func getPatchBytes(oldSvc, newSvc *v1.Service) ([]byte, error) {
@@ -167,6 +165,25 @@ func getPatchBytes(oldSvc, newSvc *v1.Service) ([]byte, error) {
 	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, v1.Service{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to CreateTwoWayMergePatch for svc %s/%s: %v", oldSvc.Namespace, oldSvc.Name, err)
+	}
+	return patchBytes, nil
+
+}
+
+func epsGetPatchBytes(oldEps, newEps *discoveryv1.EndpointSlice) ([]byte, error) {
+	oldData, err := json.Marshal(oldEps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Marshal oldData for svc %s/%s: %v", oldEps.Namespace, oldEps.Name, err)
+	}
+
+	newData, err := json.Marshal(newEps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to Marshal newData for svc %s/%s: %v", newEps.Namespace, newEps.Name, err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, discoveryv1.EndpointSlice{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to CreateTwoWayMergePatch for eps %s/%s: %v", oldEps.Namespace, newEps.Name, err)
 	}
 	return patchBytes, nil
 

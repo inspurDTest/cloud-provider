@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
@@ -155,7 +156,7 @@ type LoadBalancer interface {
 	// load balancer is not ready yet (e.g., it is still being provisioned) and
 	// polling at a fixed rate is preferred over backing off exponentially in
 	// order to minimize latency.
-	EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error)
+	EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, endpointSlices []*discoveryv1.EndpointSlice) (*v1.LoadBalancerStatus, error)
 	// UpdateLoadBalancer updates hosts under the specified load balancer.
 	// Implementations must treat the *v1.Service and *v1.Node
 	// parameters as read-only and not modify them.

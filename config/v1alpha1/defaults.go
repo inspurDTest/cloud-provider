@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	nodeconfigv1alpha1 "k8s.io/cloud-provider/controllers/node/config/v1alpha1"
 	serviceconfigv1alpha1 "k8s.io/cloud-provider/controllers/service/config/v1alpha1"
+	endpointsliceconfigv1alpha1 "k8s.io/cloud-provider/controllers/endpointslice/config/v1alpha1"
 	cmconfigv1alpha1 "k8s.io/controller-manager/config/v1alpha1"
 	utilpointer "k8s.io/utils/pointer"
 )
@@ -50,6 +51,8 @@ func SetDefaults_CloudControllerManagerConfiguration(obj *CloudControllerManager
 	cmconfigv1alpha1.RecommendedDefaultGenericControllerManagerConfiguration(&obj.Generic)
 	// Use the default RecommendedDefaultServiceControllerConfiguration options
 	serviceconfigv1alpha1.RecommendedDefaultServiceControllerConfiguration(&obj.ServiceController)
+	// Use the default RecommendedDefaultEndpointSliceControllerConfiguration options
+	endpointsliceconfigv1alpha1.RecommendedDefaultEndpointSliceControllerConfiguration(&obj.EndpointSliceController)
 	// Use the default RecommendedDefaultNodeControllerConfiguration options
 	nodeconfigv1alpha1.RecommendedDefaultNodeControllerConfiguration(&obj.NodeController)
 }

@@ -50,6 +50,7 @@ const (
 	CloudNodeController          = "cloud-node-controller"
 	ServiceLBController          = "service-lb-controller"
 	NodeRouteController          = "node-route-controller"
+	EndpointSliceController      = "endpoint-controller"
 	CloudNodeLifecycleController = "cloud-node-lifecycle-controller"
 )
 

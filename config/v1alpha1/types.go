@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	nodeconfigv1alpha1 "k8s.io/cloud-provider/controllers/node/config/v1alpha1"
 	serviceconfigv1alpha1 "k8s.io/cloud-provider/controllers/service/config/v1alpha1"
+	endpointsliceconfigv1alpha1 "k8s.io/cloud-provider/controllers/endpointslice/config/v1alpha1"
 	cmconfigv1alpha1 "k8s.io/controller-manager/config/v1alpha1"
 )
 
@@ -40,6 +41,7 @@ type CloudControllerManagerConfiguration struct {
 	// ServiceControllerConfiguration holds configuration for ServiceController
 	// related features.
 	ServiceController serviceconfigv1alpha1.ServiceControllerConfiguration
+	EndpointSliceController endpointsliceconfigv1alpha1.EndpointSliceControllerConfiguration
 	// NodeStatusUpdateFrequency is the frequency at which the controller updates nodes' status
 	NodeStatusUpdateFrequency metav1.Duration
 	// Webhook is the configuration for cloud-controller-manager hosted webhooks

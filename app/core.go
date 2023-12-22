@@ -31,6 +31,7 @@ import (
 	cloudnodelifecyclecontroller "k8s.io/cloud-provider/controllers/nodelifecycle"
 	routecontroller "k8s.io/cloud-provider/controllers/route"
 	servicecontroller "k8s.io/cloud-provider/controllers/service"
+	endpointslicecontroller "k8s.io/cloud-provider/controllers/endpointslice"
 	controllermanagerapp "k8s.io/controller-manager/app"
 	"k8s.io/controller-manager/controller"
 	"k8s.io/klog/v2"
@@ -84,6 +85,7 @@ func startServiceController(ctx context.Context, initContext ControllerInitConte
 		cloud,
 		completedConfig.ClientBuilder.ClientOrDie(initContext.ClientName),
 		completedConfig.SharedInformers.Core().V1().Services(),
+		completedConfig.SharedInformers.Discovery().V1().EndpointSlices(),
 		completedConfig.SharedInformers.Core().V1().Nodes(),
 		completedConfig.ComponentConfig.KubeCloudShared.ClusterName,
 		utilfeature.DefaultFeatureGate,
@@ -137,6 +139,24 @@ func startRouteController(ctx context.Context, initContext ControllerInitContext
 	)
 	go routeController.Run(ctx, completedConfig.ComponentConfig.KubeCloudShared.RouteReconciliationPeriod.Duration, controlexContext.ControllerManagerMetrics)
 
+	return nil, true, nil
+}
+func startEndpointSliceController(ctx context.Context, initContext ControllerInitContext, controlexContext controllermanagerapp.ControllerContext, completedConfig *config.CompletedConfig, cloud cloudprovider.Interface) (controller.Interface, bool, error) {
+	// Start the service controller
+	_, err := endpointslicecontroller.New(
+		cloud,
+		completedConfig.ClientBuilder.ClientOrDie(initContext.ClientName),
+		completedConfig.SharedInformers.Discovery().V1().EndpointSlices(),
+		completedConfig.ComponentConfig.KubeCloudShared.ClusterName,
+		utilfeature.DefaultFeatureGate,
+	)
+	if err != nil {
+		// This error shouldn't fail. It lives like this as a legacy.
+		klog.Errorf("Failed to start endpointslice controller: %v", err)
+		return nil, false, nil
+	}
+
+    // TODO
 	return nil, true, nil
 }
 
