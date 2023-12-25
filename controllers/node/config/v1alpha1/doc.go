@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // +k8s:deepcopy-gen=package
-// +k8s:conversion-gen=github.com/inspurDTest/cloud-provider/controllers/node/config
-// +k8s:conversion-gen=github.com/inspurDTest/cloud-provider/controllers/node/config/v1alpha1
+// +k8s:conversion-gen=cloud-provider/controllers/node/config
+// +k8s:conversion-gen=cloud-provider/controllers/node/config/v1alpha1
 
-package v1alpha1 // import "github.com/inspurDTest/cloud-provider/controllers/node/config/v1alpha1"
+package v1alpha1 // import "cloud-provider/controllers/node/config/v1alpha1"

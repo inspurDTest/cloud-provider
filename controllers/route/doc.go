@@ -16,4 +16,4 @@ limitations under the License.
 
 // Package route contains code for syncing cloud routing rules with
 // the list of registered nodes.
-package route // import "github.com/inspurDTest/cloud-provider/controllers/route"
+package route // import "cloud-provider/controllers/route"

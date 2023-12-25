@@ -41,7 +41,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	clientretry "k8s.io/client-go/util/retry"
-	cloudprovider "github.com/inspurDTest/cloud-provider"
+	cloudprovider "cloud-provider"
 	controllersmetrics "k8s.io/component-base/metrics/prometheus/controllers"
 	nodeutil "k8s.io/component-helpers/node/util"
 )

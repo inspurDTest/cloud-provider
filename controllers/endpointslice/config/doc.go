@@ -16,4 +16,4 @@ limitations under the License.
 
 // +k8s:deepcopy-gen=package
 
-package config // import "github.com/inspurDTest/cloud-provider/controllers/service/config"
+package config // import "cloud-provider/controllers/service/config"

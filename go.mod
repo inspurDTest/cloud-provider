@@ -1,6 +1,6 @@
 // This is a generated file. Do not edit directly.
 
-module github.com/inspurDTest/cloud-provider
+module cloud-provider
 
 go 1.21.1
 

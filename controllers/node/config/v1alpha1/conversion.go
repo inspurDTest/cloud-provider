@@ -18,7 +18,7 @@ package v1alpha1
 
 import (
 	"k8s.io/apimachinery/pkg/conversion"
-	"github.com/inspurDTest/cloud-provider/controllers/node/config"
+	"cloud-provider/controllers/node/config"
 )
 
 // Important! The public back-and-forth conversion functions for the types in this generic

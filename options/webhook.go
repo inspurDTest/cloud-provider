@@ -28,7 +28,7 @@ import (
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/apiserver/pkg/server/dynamiccertificates"
 	apiserveroptions "k8s.io/apiserver/pkg/server/options"
-	"github.com/inspurDTest/cloud-provider/config"
+	"cloud-provider/config"
 	netutils "k8s.io/utils/net"
 )
 

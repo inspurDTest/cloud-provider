@@ -26,7 +26,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
-	cloudprovider "github.com/inspurDTest/cloud-provider"
+	cloudprovider "cloud-provider"
 )
 
 const defaultProviderName = "fake"

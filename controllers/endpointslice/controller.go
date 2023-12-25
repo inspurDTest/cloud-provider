@@ -29,7 +29,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-	cloudprovider "github.com/inspurDTest/cloud-provider"
+	cloudprovider "cloud-provider"
 	"k8s.io/component-base/featuregate"
 )
 

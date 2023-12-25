@@ -24,7 +24,7 @@ package v1alpha1
 import (
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	config "github.com/inspurDTest/cloud-provider/controllers/service/config"
+	config "cloud-provider/controllers/service/config"
 )
 
 func init() {

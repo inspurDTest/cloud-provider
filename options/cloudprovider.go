@@ -18,7 +18,7 @@ package options
 
 import (
 	"github.com/spf13/pflag"
-	cpconfig "github.com/inspurDTest/cloud-provider/config"
+	cpconfig "cloud-provider/config"
 )
 
 // CloudProviderOptions holds the cloudprovider options.

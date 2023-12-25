@@ -21,8 +21,8 @@ import (
 
 	"github.com/spf13/pflag"
 
-	cpconfig "github.com/inspurDTest/cloud-provider/config"
-	"github.com/inspurDTest/cloud-provider/names"
+	cpconfig "cloud-provider/config"
+	"cloud-provider/names"
 )
 
 // KubeCloudSharedOptions holds the options shared between kube-controller-manager

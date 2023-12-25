@@ -21,9 +21,9 @@ import (
 
 	admissionv1 "k8s.io/api/admission/v1"
 	"k8s.io/apimachinery/pkg/util/dump"
-	"github.com/inspurDTest/cloud-provider/app/config"
-	cpconfig "github.com/inspurDTest/cloud-provider/config"
-	"github.com/inspurDTest/cloud-provider/fake"
+	"cloud-provider/app/config"
+	cpconfig "cloud-provider/config"
+	"cloud-provider/fake"
 )
 
 func TestWebhookEnableDisable(t *testing.T) {

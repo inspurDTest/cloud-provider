@@ -16,4 +16,4 @@ limitations under the License.
 
 // Package service contains code for syncing cloud load balancers
 // with the service registry.
-package service // import "github.com/inspurDTest/cloud-provider/controllers/service"
+package service // import "cloud-provider/controllers/service"

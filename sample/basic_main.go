@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 // This file should be written by each cloud provider.
-// For an minimal working example, please refer to github.com/inspurDTest/cloud-provider/sample/basic_main.go
+// For an minimal working example, please refer to cloud-provider/sample/basic_main.go
 // For more details, please refer to k8s.io/kubernetes/cmd/cloud-controller-manager/main.go
 
 package main
@@ -24,11 +24,11 @@ import (
 	"os"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	cloudprovider "github.com/inspurDTest/cloud-provider"
-	"github.com/inspurDTest/cloud-provider/app"
-	"github.com/inspurDTest/cloud-provider/app/config"
-	"github.com/inspurDTest/cloud-provider/names"
-	"github.com/inspurDTest/cloud-provider/options"
+	cloudprovider "cloud-provider"
+	"cloud-provider/app"
+	"cloud-provider/app/config"
+	"cloud-provider/names"
+	"cloud-provider/options"
 	"k8s.io/component-base/cli"
 	cliflag "k8s.io/component-base/cli/flag"
 	_ "k8s.io/component-base/logs/json/register"          // register optional JSON log format

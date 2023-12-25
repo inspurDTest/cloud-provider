@@ -20,8 +20,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
-	"github.com/inspurDTest/cloud-provider/config"
-	"github.com/inspurDTest/cloud-provider/config/v1alpha1"
+	"cloud-provider/config"
+	"cloud-provider/config/v1alpha1"
 )
 
 var (
