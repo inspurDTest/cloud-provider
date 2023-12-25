@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	nodeconfig "cloud-provider/controllers/node/config"
+	nodeconfig "github.com/inspurDTest/cloud-provider/controllers/node/config"
 )
 
 // NodeControllerOptions holds the ServiceController options.

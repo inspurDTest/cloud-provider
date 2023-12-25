@@ -33,8 +33,8 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	cloudprovider "cloud-provider"
-	fakecloud "cloud-provider/fake"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	fakecloud "github.com/inspurDTest/cloud-provider/fake"
 	"k8s.io/klog/v2"
 )
 

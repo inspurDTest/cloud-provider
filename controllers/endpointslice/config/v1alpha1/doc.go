@@ -18,4 +18,4 @@ limitations under the License.
 // +k8s:conversion-gen=cloud-provider/controllers/service/config
 // +k8s:conversion-gen=cloud-provider/controllers/service/config/v1alpha1
 
-package v1alpha1 // import "cloud-provider/controllers/service/config/v1alpha1"
+package v1alpha1 // import "github.com/inspurDTest/cloud-provider/controllers/service/config/v1alpha1"

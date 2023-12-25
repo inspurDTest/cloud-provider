@@ -28,8 +28,8 @@ import (
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
 	core "k8s.io/client-go/testing"
-	cloudprovider "cloud-provider"
-	fakecloud "cloud-provider/fake"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	fakecloud "github.com/inspurDTest/cloud-provider/fake"
 	nodeutil "k8s.io/component-helpers/node/util"
 	netutils "k8s.io/utils/net"
 

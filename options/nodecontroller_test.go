@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"testing"
 
-	nodeconfig "cloud-provider/controllers/node/config"
+	nodeconfig "github.com/inspurDTest/cloud-provider/controllers/node/config"
 )
 
 func errSliceEq(a []error, b []error) bool {

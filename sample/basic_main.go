@@ -24,11 +24,11 @@ import (
 	"os"
 
 	"k8s.io/apimachinery/pkg/util/wait"
-	cloudprovider "cloud-provider"
-	"cloud-provider/app"
-	"cloud-provider/app/config"
-	"cloud-provider/names"
-	"cloud-provider/options"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	"github.com/inspurDTest/cloud-provider/app"
+	"github.com/inspurDTest/cloud-provider/app/config"
+	"github.com/inspurDTest/cloud-provider/names"
+	"github.com/inspurDTest/cloud-provider/options"
 	"k8s.io/component-base/cli"
 	cliflag "k8s.io/component-base/cli/flag"
 	_ "k8s.io/component-base/logs/json/register"          // register optional JSON log format

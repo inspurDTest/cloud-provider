@@ -18,7 +18,7 @@ package options
 
 import (
 	"github.com/spf13/pflag"
-	cpconfig "cloud-provider/config"
+	cpconfig "github.com/inspurDTest/cloud-provider/config"
 )
 
 // CloudProviderOptions holds the cloudprovider options.
@@ -34,7 +34,7 @@ func (s *CloudProviderOptions) Validate() []error {
 
 // AddFlags adds flags related to cloudprovider for controller manager to the specified FlagSet.
 func (s *CloudProviderOptions) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&s.Name, "cloud-provider", s.Name,
+	fs.StringVar(&s.Name, "github.com/inspurDTest/cloud-provider", s.Name,
 		"The provider for cloud services. Empty string for no provider.")
 
 	fs.StringVar(&s.CloudConfigFile, "cloud-config", s.CloudConfigFile,

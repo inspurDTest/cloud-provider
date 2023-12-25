@@ -22,7 +22,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/util/sets"
-	"cloud-provider/names"
+	"github.com/inspurDTest/cloud-provider/names"
 )
 
 func TestCloudControllerNamesConsistency(t *testing.T) {

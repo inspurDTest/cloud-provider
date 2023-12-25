@@ -35,9 +35,9 @@ import (
 	"k8s.io/client-go/informers"
 	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
-	cloudprovider "cloud-provider"
-	cloudproviderapi "cloud-provider/api"
-	fakecloud "cloud-provider/fake"
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	cloudproviderapi "github.com/inspurDTest/cloud-provider/api"
+	fakecloud "github.com/inspurDTest/cloud-provider/fake"
 	_ "k8s.io/controller-manager/pkg/features/register"
 
 	"github.com/google/go-cmp/cmp"

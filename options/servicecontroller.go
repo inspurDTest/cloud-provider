@@ -18,7 +18,7 @@ package options
 
 import (
 	"github.com/spf13/pflag"
-	serviceconfig "cloud-provider/controllers/service/config"
+	serviceconfig "github.com/inspurDTest/cloud-provider/controllers/service/config"
 )
 
 // ServiceControllerOptions holds the ServiceController options.

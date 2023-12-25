@@ -22,8 +22,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"cloud-provider/names"
-	"cloud-provider/options"
+	"github.com/inspurDTest/cloud-provider/names"
+	"github.com/inspurDTest/cloud-provider/options"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/cli/globalflag"
 	"k8s.io/component-base/term"

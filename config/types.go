@@ -18,8 +18,8 @@ package config
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	nodeconfig "cloud-provider/controllers/node/config"
-	serviceconfig "cloud-provider/controllers/service/config"
+	nodeconfig "github.com/inspurDTest/cloud-provider/controllers/node/config"
+	serviceconfig "github.com/inspurDTest/cloud-provider/controllers/service/config"
 	cmconfig "k8s.io/controller-manager/config"
 )
 

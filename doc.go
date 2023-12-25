@@ -15,4 +15,4 @@ limitations under the License.
 */
 
 // Package cloudprovider supplies interfaces and implementations for cloud service providers.
-package cloudprovider // import "cloud-provider"
+package cloudprovider // import "github.com/inspurDTest/cloud-provider"
