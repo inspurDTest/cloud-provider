@@ -24,7 +24,7 @@ package v1alpha1
 import (
 	conversion "k8s.io/apimachinery/pkg/conversion"
 	runtime "k8s.io/apimachinery/pkg/runtime"
-	config "cloud-provider/controllers/EndpointSlice/config"
+	config "cloud-provider/controllers/endpointSlice/config"
 )
 
 func init() {
