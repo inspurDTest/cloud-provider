@@ -1,10 +1,11 @@
 // This is a generated file. Do not edit directly.
 
-module cloud-provider
+module github.com/inspurDTest/cloud-provider
 
 go 1.21.1
 
 require (
+	cloud-provider v0.0.0-00010101000000-000000000000
 	github.com/google/go-cmp v0.6.0
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
@@ -19,8 +20,6 @@ require (
 	k8s.io/klog/v2 v2.110.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 )
-
-require golang.org/x/text v0.14.0 // indirect
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
@@ -91,7 +90,7 @@ require (
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
 	golang.org/x/term v0.15.0 // indirect
-	//golang.org/x/text v0.14.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20230803162519-f966b187b2e5 // indirect
@@ -112,6 +111,7 @@ require (
 )
 
 replace (
+	cloud-provider => ../cloud-provider
 	k8s.io/api => k8s.io/api v0.0.0-20231220172311-84c476802242
 	k8s.io/apimachinery => k8s.io/apimachinery v0.0.0-20231220171733-60eaa653342b
 	k8s.io/apiserver => k8s.io/apiserver v0.0.0-20231220175500-a6c31ce50462
@@ -120,5 +120,4 @@ replace (
 	k8s.io/component-helpers => k8s.io/component-helpers v0.0.0-20231220174623-c3fe7bbf6991
 	k8s.io/controller-manager => k8s.io/controller-manager v0.0.0-20231220184746-2a157ca0075b
 	k8s.io/kms => k8s.io/kms v0.0.0-20231220174908-0e979309a09f
-
 )
