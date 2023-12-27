@@ -41,6 +41,8 @@ type CloudControllerManagerConfiguration struct {
 	// ServiceControllerConfiguration holds configuration for ServiceController
 	// related features.
 	ServiceController serviceconfigv1alpha1.ServiceControllerConfiguration
+	// EndpointSliceControllerConfiguration holds configuration for ServiceController
+	// related features.
 	EndpointSliceController endpointsliceconfigv1alpha1.EndpointSliceControllerConfiguration
 	// NodeStatusUpdateFrequency is the frequency at which the controller updates nodes' status
 	NodeStatusUpdateFrequency metav1.Duration

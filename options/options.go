@@ -59,6 +59,7 @@ type CloudControllerManagerOptions struct {
 	KubeCloudShared   *KubeCloudSharedOptions
 	ServiceController *ServiceControllerOptions
 	NodeController    *NodeControllerOptions
+	EndpointSliceController *EndpointSliceOptions
 
 	SecureServing  *apiserveroptions.SecureServingOptionsWithLoopback
 	Authentication *apiserveroptions.DelegatingAuthenticationOptions
@@ -105,6 +106,9 @@ func NewCloudControllerManagerOptionsWithProviderDefaults(defaults ProviderDefau
 		},
 		ServiceController: &ServiceControllerOptions{
 			ServiceControllerConfiguration: &componentConfig.ServiceController,
+		},
+		EndpointSliceController: &EndpointSliceOptions{
+			EndpointSliceControllerConfiguration: &componentConfig.EndpointSliceController,
 		},
 		SecureServing:             apiserveroptions.NewSecureServingOptions().WithLoopback(),
 		Webhook:                   NewWebhookOptions(),

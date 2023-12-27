@@ -156,7 +156,7 @@ type LoadBalancer interface {
 	// load balancer is not ready yet (e.g., it is still being provisioned) and
 	// polling at a fixed rate is preferred over backing off exponentially in
 	// order to minimize latency.
-	EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, endpointSlices []*discoveryv1.EndpointSlice) (*v1.LoadBalancerStatus, error)
+	EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node, endpointSlices []*discoveryv1.EndpointSlice, lbId string) (*v1.LoadBalancerStatus, error)
 	// UpdateLoadBalancer updates hosts under the specified load balancer.
 	// Implementations must treat the *v1.Service and *v1.Node
 	// parameters as read-only and not modify them.
@@ -170,7 +170,7 @@ type LoadBalancer interface {
 	// doesn't exist even if some part of it is still laying around.
 	// Implementations must treat the *v1.Service parameter as read-only and not modify it.
 	// Parameter 'clusterName' is the name of the cluster as presented to kube-controller-manager
-	EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error
+	EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service, lbId string) error
 }
 
 // Instances is an abstract, pluggable interface for sets of instances.
@@ -261,6 +261,7 @@ var (
 	ImplementedElsewhere = errors.New("implemented by alternate to cloud provider")
 	InstanceNotFound     = errors.New("instance not found")
 	NotImplemented       = errors.New("unimplemented")
+	Conflict             = errors.New("conflict")
 )
 
 // Zone represents the location of a particular machine.

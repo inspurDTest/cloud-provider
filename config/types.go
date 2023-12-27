@@ -20,6 +20,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	nodeconfig "github.com/inspurDTest/cloud-provider/controllers/node/config"
 	serviceconfig "github.com/inspurDTest/cloud-provider/controllers/service/config"
+	endpointSliceconfig "github.com/inspurDTest/cloud-provider/controllers/endpointslice/config"
 	cmconfig "k8s.io/controller-manager/config"
 )
 
@@ -42,6 +43,10 @@ type CloudControllerManagerConfiguration struct {
 	// ServiceControllerConfiguration holds configuration for ServiceController
 	// related features.
 	ServiceController serviceconfig.ServiceControllerConfiguration
+
+	// EndpointSliceController holds configuration for endpointSlice controller
+	// related features.
+	EndpointSliceController endpointSliceconfig.EndpointSliceControllerConfiguration
 
 	// NodeStatusUpdateFrequency is the frequency at which the controller updates nodes' status
 	NodeStatusUpdateFrequency metav1.Duration

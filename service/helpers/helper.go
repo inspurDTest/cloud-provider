@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"github.com/inspurDTest/cloud-provider/controllers/service"
 	utilnet "k8s.io/utils/net"
 )
 
@@ -120,6 +121,13 @@ func HasLBFinalizer(service *v1.Service) bool {
 		}
 	}
 	return false
+}
+// HasAnnoation checks if service have annotation
+func HasAnnoation(svc *v1.Service, key string) bool {
+	if svc.Annotations != nil && len(svc.Annotations[key]) == 0 {
+		return false
+	}
+	return true
 }
 
 

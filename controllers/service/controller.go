@@ -21,9 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
+	cloudprovider "github.com/inspurDTest/cloud-provider"
+	"github.com/inspurDTest/cloud-provider/api"
+	endpointhelper "github.com/inspurDTest/cloud-provider/endpointslice/helpers"
+	servicehelper "github.com/inspurDTest/cloud-provider/service/helpers"
 	v1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -42,10 +47,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-	cloudprovider "github.com/inspurDTest/cloud-provider"
-	"github.com/inspurDTest/cloud-provider/api"
-	endpointhelper "github.com/inspurDTest/cloud-provider/endpointslice/helpers"
-	servicehelper "github.com/inspurDTest/cloud-provider/service/helpers"
 	"k8s.io/component-base/featuregate"
 	controllersmetrics "k8s.io/component-base/metrics/prometheus/controllers"
 	"k8s.io/controller-manager/pkg/features"
@@ -72,6 +73,9 @@ const (
 	ToBeDeletedTaint = "ToBeDeletedByClusterAutoscaler"
 
 	KubernetesServiceName = "kubernetes.io/service-name"
+
+	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
+	ServiceAnnotationLoadBalancerOldID = "loadbalancer.openstack.org/load-balancer-old-id"
 )
 
 type cachedService struct {
@@ -173,15 +177,45 @@ func New(
 				eps, ok := cur.(*discoveryv1.EndpointSlice)
 				// Check cleanup here can provide a remedy when controller failed to handle
 				// changes before it exiting (e.g. crashing, restart, etc.).
+				// TODO 是否判断service是否有效,以及service
 				if ok && epsHaveServiceName(eps) {
-					s.enqueueService(eps.Labels[KubernetesServiceName])
+					// serviceName :=
+					svc ,err :=	serviceInformer.Lister().Services(eps.Namespace).Get(eps.Labels[KubernetesServiceName])
+					if err != nil || svc ==  nil {
+						// TODO 判断err是否存在
+						return
+					}
+
+					// eps owner svc do not belong any lb
+					if (wantsLoadBalancer(svc) || needsCleanup(svc)){
+						return
+					}
+					s.enqueueService(svc)
 				}
 			},
 			UpdateFunc: func(old, cur interface{}) {
 				oldEps, ok1 := old.(*discoveryv1.EndpointSlice)
 				curEps, ok2 := cur.(*discoveryv1.EndpointSlice)
-				if ok1 && ok2 && (s.epsNeedsUpdate(oldEps, curEps) || epsNeedsCleanup(curEps)) {
-					s.enqueueService(cur)
+				if ok1 && ok2 && (epsHaveServiceName(oldEps) || epsHaveServiceName(curEps)) && (s.epsNeedsUpdate(oldEps, curEps) || epsNeedsCleanup(curEps)) {
+					klog.Info("endpoint update, enqueueService: %v")
+					var svc *v1.Service
+					var err  error
+					if  epsHaveServiceName(curEps){
+						svc ,err =	serviceInformer.Lister().Services(curEps.Namespace).Get(curEps.Labels[KubernetesServiceName])
+					}else if epsHaveServiceName(oldEps) {
+						svc ,err =	serviceInformer.Lister().Services(curEps.Namespace).Get(oldEps.Labels[KubernetesServiceName])
+					}
+
+					if err != nil || svc ==  nil {
+						// TODO 判断err是否存在
+						return
+					}
+
+					// eps owner svc do not belong any lb
+					if (wantsLoadBalancer(svc) || needsCleanup(svc)){
+						return
+					}
+					s.enqueueService(svc)
 				}
 			},
 			// No need to handle deletion event because the deletion would be handled by
@@ -189,6 +223,7 @@ func New(
 		},
 		endpointSliceSyncPeriod,
 	)
+
 	s.endpointSliceLister = endpointSliceInformer.Lister()
 	s.endpointSliceListerSynced = endpointSliceInformer.Informer().HasSynced
 
@@ -262,6 +297,7 @@ func (c *Controller) Run(ctx context.Context, workers int, controllerManagerMetr
 	defer runtime.HandleCrash()
 	defer c.serviceQueue.ShutDown()
 	defer c.nodeQueue.ShutDown()
+	defer c.endpointsliceQueue.ShutDown()
 
 	// Start event processing pipeline.
 	c.eventBroadcaster.StartStructuredLogging(0)
@@ -273,7 +309,7 @@ func (c *Controller) Run(ctx context.Context, workers int, controllerManagerMetr
 	controllerManagerMetrics.ControllerStarted("service")
 	defer controllerManagerMetrics.ControllerStopped("service")
 
-	if !cache.WaitForNamedCacheSync("service", ctx.Done(), c.serviceListerSynced, c.nodeListerSynced) {
+	if !cache.WaitForNamedCacheSync("service", ctx.Done(), c.serviceListerSynced, c.nodeListerSynced, c.endpointSliceListerSynced) {
 		return
 	}
 
@@ -283,7 +319,8 @@ func (c *Controller) Run(ctx context.Context, workers int, controllerManagerMetr
 
 	// Initialize one go-routine servicing node events. This ensure we only
 	// process one node at any given moment in time
-	go wait.UntilWithContext(ctx, func(ctx context.Context) { c.nodeWorker(ctx, workers) }, time.Second)
+	// TODO  wangyudong 屏蔽
+	 go wait.UntilWithContext(ctx, func(ctx context.Context) { c.nodeWorker(ctx, workers) }, time.Second)
 
 	<-ctx.Done()
 }
@@ -366,7 +403,14 @@ func (c *Controller) processServiceCreateOrUpdate(ctx context.Context, service *
 		// This happens only when a service is deleted and re-created
 		// in a short period, which is only possible when it doesn't
 		// contain finalizer.
-		if err := c.processLoadBalancerDelete(ctx, cachedService.state, key); err != nil {
+
+		lbID := getStringFromServiceAnnotation(cachedService.state, ServiceAnnotationLoadBalancerID, "")
+		if err := c.processLoadBalancerDelete(ctx, cachedService.state, key, lbID); err != nil {
+			return err
+		}
+
+		oldLbID := getStringFromServiceAnnotation(cachedService.state, ServiceAnnotationLoadBalancerOldID, "")
+		if err := c.processLoadBalancerDelete(ctx, cachedService.state, key, oldLbID); err != nil {
 			return err
 		}
 	}
@@ -404,6 +448,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	// Save the state so we can avoid a write if it doesn't change
 	previousStatus := service.Status.LoadBalancer.DeepCopy()
 	var newStatus *v1.LoadBalancerStatus
+	var err error
 	var op loadBalancerOperation
 
 	// service 删除操作
@@ -411,22 +456,25 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		// Delete the load balancer if service no longer wants one, or if service needs cleanup.
 		op = deleteLoadBalancer
 		newStatus = &v1.LoadBalancerStatus{}
-		_, exists, err := c.balancer.GetLoadBalancer(ctx, c.clusterName, service)
-		if err != nil {
-			return op, fmt.Errorf("failed to check if load balancer exists before cleanup: %v", err)
-		}
-		if exists {
-			klog.V(2).Infof("Deleting existing load balancer for service %s", key)
-			c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
-			// TODO 此处不删掉loadbalance
-			if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service); err != nil {
-				if err == cloudprovider.ImplementedElsewhere {
-					klog.V(4).Infof("LoadBalancer for service %s implemented by a different controller %s, Ignoring error on deletion", key, c.cloud.ProviderName())
-				} else {
-					return op, fmt.Errorf("failed to delete load balancer: %v", err)
-				}
+
+		// TODO 处理旧的Loadbalancer 使用ensureLoadBalancerDeleted
+		oldLbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerOldID, "")
+		if len(oldLbID) != 0 {
+			err := c.processLoadBalancerDelete(ctx,service, "", oldLbID)
+			if err != nil{
+				return op, fmt.Errorf("failed to ensure load balancer'processLoadBalancerDelete err: %w", err)
 			}
 		}
+
+		// TODO 处理新的Loadbalancer 使用ensureLoadBalancerDeleted
+		lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+		if len(lbID) != 0 {
+			err := c.processLoadBalancerDelete(ctx,service, "", lbID)
+			if err != nil{
+				return op, fmt.Errorf("failed to ensure load balancer'processLoadBalancerDelete err: %w", err)
+			}
+		}
+
 		// Always remove finalizer when load balancer is deleted, this ensures Services
 		// can be deleted after all corresponding load balancer resources are deleted.
 		if err := c.removeFinalizer(service); err != nil {
@@ -439,54 +487,70 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		// Create or update the load balancer if service wants one.
 		op = ensureLoadBalancer
 		klog.V(2).Infof("Ensuring load balancer for service %s", key)
-		c.eventRecorder.Event(service, v1.EventTypeNormal, "EnsuringLoadBalancer", "Ensuring load balancer")
+
 		// Always add a finalizer prior to creating load balancers, this ensures Services
 		// can't be deleted until all corresponding load balancer resources are also deleted.
 		if err := c.addFinalizer(service); err != nil {
 			return op, fmt.Errorf("failed to add load balancer cleanup finalizer: %v", err)
 		}
 
-		if err := c.addFinalizer(service); err != nil {
-			return op, fmt.Errorf("failed to add load balancer cleanup finalizer: %v", err)
-		}
-
-		// 王玉东 remove eps's  finalizer,when eps  belong to service
-		epsLablelSelector := labels.Set(map[string]string{
-			discoveryv1.LabelServiceName: service.Name,
-		}).AsSelectorPreValidated()
-		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
-		if err != nil {
-			return op, fmt.Errorf("syncLoadBalancerIfNeeded: failed to get endpoints : %v", err)
-		}
-		for _, eps := range epss {
+		for _, eps := range endpointSlices{
 			if err := c.addEndpointSliceFinalizer(eps); err != nil {
-				return op, fmt.Errorf("syncLoadBalancerIfNeeded: failed to add endpoints finalizer: %v", err)
+				return op, fmt.Errorf("failed to add load balancer cleanup finalizer to eps:%+v, err: %v", eps, err)
 			}
 		}
 
-		newStatus, err = c.ensureLoadBalancer(ctx, service, endpointSlices)
-		if err != nil {
-			if err == cloudprovider.ImplementedElsewhere {
-				// ImplementedElsewhere indicates that the ensureLoadBalancer is a nop and the
-				// functionality is implemented by a different controller.  In this case, we
-				// return immediately without doing anything.
-				klog.V(4).Infof("LoadBalancer for service %s implemented by a different controller %s, Ignoring error", key, c.cloud.ProviderName())
-				return op, nil
+		// 处理旧的oldLoadbalancer 使用ensureLoadBalancerDeleted
+		oldLbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerOldID, "")
+		if len(oldLbID) != 0 {
+			err := c.processLoadBalancerDelete(ctx,service, "", oldLbID)
+			// only remove oldlbID，newstatus is remove all status. other  newstatus is add or update status
+			newStatus.Ingress = []v1.LoadBalancerIngress{}
+			if err != nil{
+				return op, fmt.Errorf("failed to delete  old load balancer,loadbalancer id: %s, err: %w", oldLbID, err)
 			}
-			// Use %w deliberately so that a returned RetryError can be handled.
-			return op, fmt.Errorf("failed to ensure load balancer: %w", err)
-		}
-		if newStatus == nil {
-			return op, fmt.Errorf("service status returned by EnsureLoadBalancer is nil")
 		}
 
-		c.eventRecorder.Event(service, v1.EventTypeNormal, "EnsuredLoadBalancer", "Ensured load balancer")
+		//  处理新的oldLoadbalancer
+		lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
+		if len(lbID) != 0 {
+			newStatus, err = c.ensureLoadBalancer(ctx, service, endpointSlices, lbID)
+			if err != nil {
+				if err == cloudprovider.ImplementedElsewhere {
+					// ImplementedElsewhere indicates that the ensureLoadBalancer is a nop and the
+					// functionality is implemented by a different controller.  In this case, we
+					// return immediately without doing anything.
+					klog.V(4).Infof("LoadBalancer for service %s implemented by a different controller %s, Ignoring error", key, c.cloud.ProviderName())
+					return op, nil
+				}
+				if strings.Contains(strings.ToLower(err.Error()),  "conflict"){
+					// ImplementedElsewhere indicates that the ensureLoadBalancer is a nop and the
+					// functionality is implemented by a different controller.  In this case, we
+					// return immediately without doing anything.
+					c.eventRecorder.Event(service, v1.EventTypeWarning, "conflict", strings.ToLower(err.Error()))
+					return op, nil
+				}
+				// Use %w deliberately so that a returned RetryError can be handled.
+				return op, fmt.Errorf("failed to ensure load balancer: %w", err)
+			}
+			if newStatus == nil {
+				return op, fmt.Errorf("service status returned by EnsureLoadBalancer is nil")
+			}
+		}
 	}
-	// eps更新和删除等变化与service非强相关，故service增删改都可能导致eps删除
+	c.eventRecorder.Event(service, v1.EventTypeNormal, "EnsuringLoadBalancer", "Ensuring load balancer")
+
+	// remove  finalizer, when eps have DeletionTimestamp
 	if err := c.removeEndpointSliceFinalizerByService(service); err != nil {
 		return op, err
 	}
 
+	// remove old loadbalace annotation
+	if err := c.removeSvcOldLbId(service); err != nil {
+		return op, err
+	}
+
+	// TODO 处理service的status,并且一处oldLBID
 	if err := c.patchStatus(service, previousStatus, newStatus); err != nil {
 		// Only retry error that isn't not found:
 		// - Not found error mostly happens when service disappears right after
@@ -500,19 +564,10 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	return op, nil
 }
 
-func (c *Controller) ensureLoadBalancer(ctx context.Context, service *v1.Service, endpointSlices []*discoveryv1.EndpointSlice) (*v1.LoadBalancerStatus, error) {
-	nodes, err := listWithPredicates(c.nodeLister, getNodePredicatesForService(service)...)
-	if err != nil {
-		return nil, err
-	}
-	// If there are no available nodes for LoadBalancer service, make a EventTypeWarning event for it.
-	if len(nodes) == 0 {
-		c.eventRecorder.Event(service, v1.EventTypeWarning, "UnAvailableLoadBalancer", "There are no available nodes for LoadBalancer")
-	}
-	c.storeLastSyncedNodes(service, nodes)
+func (c *Controller) ensureLoadBalancer(ctx context.Context, service *v1.Service, endpointSlices []*discoveryv1.EndpointSlice, lbID string) (*v1.LoadBalancerStatus, error) {
 	// - Not all cloud providers support all protocols and the next step is expected to return
 	//   an error for unsupported protocols
-	status, err := c.balancer.EnsureLoadBalancer(ctx, c.clusterName, service, nodes, endpointSlices)
+	status, err := c.balancer.EnsureLoadBalancer(ctx, c.clusterName, service, nil, endpointSlices, lbID)
 	if err != nil {
 		return nil, err
 	}
@@ -712,7 +767,7 @@ func (c *Controller) needsUpdate(oldService *v1.Service, newService *v1.Service)
 func (c *Controller) epsNeedsUpdate(oldEps *discoveryv1.EndpointSlice, newEps *discoveryv1.EndpointSlice) bool {
 
 	// 排除非ipv4、ipv6类型
-	if !supportIpProtocol(oldEps) && !supportIpProtocol(newEps) {
+	if !epSupportIpProtocol(oldEps) && !epSupportIpProtocol(newEps) {
 		return false
 	}
 
@@ -976,9 +1031,9 @@ func (c *Controller) lockedUpdateLoadBalancerHosts(service *v1.Service, hosts []
 	return err
 }
 
-func supportIpProtocol(eps *discoveryv1.EndpointSlice) bool {
+func epSupportIpProtocol(eps *discoveryv1.EndpointSlice) bool {
 	// if LoadBalancerClass is set, the user does not want the default cloud-provider Load Balancer
-	return eps.AddressType != discoveryv1.AddressTypeIPv4 || eps.AddressType != discoveryv1.AddressTypeIPv6
+	return eps.AddressType == discoveryv1.AddressTypeIPv4 || eps.AddressType == discoveryv1.AddressTypeIPv6
 }
 
 func wantsLoadBalancer(service *v1.Service) bool {
@@ -1016,9 +1071,11 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 		epsLablelSelector := labels.Set(map[string]string{
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
+
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
-		if err != nil {
-			return fmt.Errorf("syncService: failed to get endpoints : %v", err)
+		if !apierrors.IsNotFound(err)  {
+			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
+			return err
 		}
 		// It is not safe to modify an object returned from an informer.
 		// As reconcilers may modify the service object we need to copy
@@ -1039,20 +1096,30 @@ func (c *Controller) processServiceDeletion(ctx context.Context, key string) err
 		return nil
 	}
 	klog.V(2).Infof("Service %v has been deleted. Attempting to cleanup load balancer resources", key)
-	if err := c.processLoadBalancerDelete(ctx, cachedService.state, key); err != nil {
+	/*if err := c.processLoadBalancerDelete(ctx, cachedService.state, key); err != nil {
+		return err
+	}*/
+	lbID := getStringFromServiceAnnotation(cachedService.state, ServiceAnnotationLoadBalancerID, "")
+	if err := c.processLoadBalancerDelete(ctx, cachedService.state, key, lbID); err != nil {
 		return err
 	}
+
+	oldLbID := getStringFromServiceAnnotation(cachedService.state, ServiceAnnotationLoadBalancerOldID, "")
+	if err := c.processLoadBalancerDelete(ctx, cachedService.state, key, oldLbID); err != nil {
+		return err
+	}
+
 	c.cache.delete(key)
 	return nil
 }
 
-func (c *Controller) processLoadBalancerDelete(ctx context.Context, service *v1.Service, key string) error {
+func (c *Controller) processLoadBalancerDelete(ctx context.Context, service *v1.Service, key string, lbId string) error {
 	// delete load balancer info only if the service type is LoadBalancer
 	if !wantsLoadBalancer(service) {
 		return nil
 	}
 	c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
-	if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service); err != nil {
+	if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service, lbId); err != nil {
 		c.eventRecorder.Eventf(service, v1.EventTypeWarning, "DeleteLoadBalancerFailed", "Error deleting load balancer: %v", err)
 		return err
 	}
@@ -1094,7 +1161,9 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 	if !servicehelper.HasLBFinalizer(service) {
 		return nil
 	}
-
+    if !needsCleanup(service){
+		return nil
+	}
 	// Make a copy so we don't mutate the shared informer cache.
 	updated := service.DeepCopy()
 	updated.ObjectMeta.Finalizers = removeString(updated.ObjectMeta.Finalizers, servicehelper.LoadBalancerCleanupFinalizer)
@@ -1103,6 +1172,30 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
 	return err
 }
+
+// removeSvcOldLbId patches the service to remove finalizer.
+func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
+	if !servicehelper.HasLBFinalizer(service) {
+		return nil
+	}
+
+	if service.ObjectMeta.DeletionTimestamp != nil {
+		return nil
+	}
+
+	// ServiceAnnotationLoadBalancerOldID
+	if !servicehelper.HasAnnoation(service, ServiceAnnotationLoadBalancerOldID){
+		return nil
+	}
+
+	// Make a copy so we don't mutate the shared informer cache.
+	updated := service.DeepCopy()
+	updated.Annotations = removeAnnotationKey(updated.Annotations, ServiceAnnotationLoadBalancerOldID)
+	klog.V(2).Infof("Removing old loadbalance annotation from service %s/%s", updated.Namespace, updated.Name)
+	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
+	return err
+}
+
 
 // TODO 处理remove endpointslice的finalizer
 // removeEndpointSliceFinalizer patches the endpointslice to remove finalizer.
@@ -1150,6 +1243,18 @@ func removeString(slice []string, s string) []string {
 		}
 	}
 	return newSlice
+}
+
+// removeString returns a newly created []string that contains all items from slice that
+// are not equal to s.
+func removeAnnotationKey(annotation map[string]string, key string) map[string]string {
+	var newAnnotation map[string]string
+	for oldAnnotation, value := range annotation {
+		if !strings.EqualFold(oldAnnotation, key){
+			newAnnotation[oldAnnotation] = value
+		}
+	}
+	return newAnnotation
 }
 
 // patchStatus patches the service with the given LoadBalancerStatus.
@@ -1259,4 +1364,20 @@ func respectsPredicates(node *v1.Node, predicates ...NodeConditionPredicate) boo
 		}
 	}
 	return true
+}
+// getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
+func getStringFromServiceAnnotation(service *v1.Service, annotationKey string, defaultSetting string) string {
+	klog.V(4).Infof("getStringFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
+	if annotationValue, ok := service.Annotations[annotationKey]; ok {
+		//if there is an annotation for this setting, set the "setting" var to it
+		// annotationValue can be empty, it is working as designed
+		// it makes possible for instance provisioning loadbalancer without floatingip
+		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, annotationValue)
+		return annotationValue
+	}
+	//if there is no annotation, set "settings" var to the value from cloud config
+	if defaultSetting != "" {
+		klog.V(4).Infof("Could not find a Service Annotation; falling back on cloud-config setting: %v = %v", annotationKey, defaultSetting)
+	}
+	return defaultSetting
 }

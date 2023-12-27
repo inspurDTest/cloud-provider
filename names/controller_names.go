@@ -65,6 +65,7 @@ func CCMControllerAliases() map[string]string {
 		"service":              ServiceLBController,
 		"route":                NodeRouteController,
 		"cloud-node-lifecycle": CloudNodeLifecycleController,
+		"endpointslice": EndpointSliceController,
 	}
 
 }
