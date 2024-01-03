@@ -110,6 +110,7 @@ require (
 )
 
 replace (
+	github.com/inspurDTest/cloud-provider => ../cloud-provider
 	k8s.io/api => k8s.io/api v0.28.4
 	k8s.io/apimachinery => k8s.io/apimachinery v0.28.4
 	k8s.io/apiserver => k8s.io/apiserver v0.28.4
