@@ -134,10 +134,7 @@ func EPSHasLBFinalizer(service *v1.Service) bool {
 	return false
 }
 
-// LoadBalancerStatusEqual checks if load balancer status are equal
-func LoadBalancerStatusEqual(l, r *v1.LoadBalancerStatus) bool {
-	return ingressSliceEqual(l.Ingress, r.Ingress)
-}
+
 
 // PatchEndpointSlice patches the given endpointSlice's Status or ObjectMeta based on the original and
 // updated ones. Change to spec will be ignored.
@@ -189,27 +186,5 @@ func epsGetPatchBytes(oldEps, newEps *discoveryv1.EndpointSlice) ([]byte, error)
 
 }
 
-func ingressSliceEqual(lhs, rhs []v1.LoadBalancerIngress) bool {
-	if len(lhs) != len(rhs) {
-		return false
-	}
-	for i := range lhs {
-		if !ingressEqual(&lhs[i], &rhs[i]) {
-			return false
-		}
-	}
-	return true
-}
 
-func ingressEqual(lhs, rhs *v1.LoadBalancerIngress) bool {
-	if lhs.IP != rhs.IP {
-		return false
-	}
-	if lhs.Hostname != rhs.Hostname {
-		return false
-	}
-	if lhs.IPMode != rhs.IPMode {
-		return false
-	}
-	return true
-}
+
