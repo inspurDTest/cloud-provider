@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	"github.com/inspurDTest/cloud-provider/controllers/service"
 	utilnet "k8s.io/utils/net"
 )
 
