@@ -186,8 +186,8 @@ func New(
 						return
 					}
 
-					// eps owner svc do not belong any lb
-					if (wantsLoadBalancer(svc) || needsCleanup(svc)){
+					// skip掉svc do not  belong lb 管理情况
+					if !(wantsLoadBalancer(svc) || needsCleanup(svc)){
 						return
 					}
 					s.enqueueService(svc)
@@ -211,8 +211,8 @@ func New(
 						return
 					}
 
-					// eps owner svc do not belong any lb
-					if (wantsLoadBalancer(svc) || needsCleanup(svc)){
+					// skip掉svc do not  belong lb 管理情况
+					if !(wantsLoadBalancer(svc) || needsCleanup(svc)){
 						return
 					}
 					s.enqueueService(svc)
