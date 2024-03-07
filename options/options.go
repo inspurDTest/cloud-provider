@@ -18,6 +18,7 @@ package options
 
 import (
 	"fmt"
+	"k8s.io/klog/v2"
 	"math/rand"
 	"net"
 	"time"
@@ -272,7 +273,8 @@ func (o *CloudControllerManagerOptions) Validate(allControllers []string, disabl
 		}
 	}
 	if len(o.KubeCloudShared.CloudProvider.Name) == 0 {
-		errors = append(errors, fmt.Errorf("--cloud-provider cannot be empty"))
+		//errors = append(errors, fmt.Errorf("--cloud-provider cannot be empty"))
+		klog.Warningf("cloudProvider is empty")
 	}
 
 	return utilerrors.NewAggregate(errors)
