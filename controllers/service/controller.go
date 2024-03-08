@@ -174,7 +174,9 @@ func New(
 	endpointSliceInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(cur interface{}) {
+				klog.V(1).Infof("begin endpointSliceInformer--addFunc" )
 				eps, ok := cur.(*discoveryv1.EndpointSlice)
+				klog.V(1).Infof("begin endpointSliceInformer--addFunc,eps:%v+",eps )
 				// Check cleanup here can provide a remedy when controller failed to handle
 				// changes before it exiting (e.g. crashing, restart, etc.).
 				// TODO 是否判断service是否有效,以及service
@@ -1071,7 +1073,11 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 		epsLablelSelector := labels.Set(map[string]string{
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
-
+		_, err := c.endpointSliceLister.EndpointSlices(service.Namespace).Get("wyd-tomcat-2-qd5s1")
+		if !apierrors.IsNotFound(err)  {
+			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
+			return err
+		}
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
 		if !apierrors.IsNotFound(err)  {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
