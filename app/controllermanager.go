@@ -450,6 +450,7 @@ var DefaultInitFuncConstructors = map[string]ControllerInitFuncConstructor{
 	// The cloud-node controller shares the "node-controller" identity with the cloud-node-lifecycle
 	// controller for historical reasons.  See
 	// https://github.com/kubernetes/kubernetes/pull/72764#issuecomment-453300990 for more context.
+	/*
 	names.CloudNodeController: {
 		InitContext: ControllerInitContext{
 			ClientName: "node-controller",
@@ -462,19 +463,21 @@ var DefaultInitFuncConstructors = map[string]ControllerInitFuncConstructor{
 		},
 		Constructor: StartCloudNodeLifecycleControllerWrapper,
 	},
+	 */
 	names.ServiceLBController: {
 		InitContext: ControllerInitContext{
 			ClientName: "service-controller",
 		},
 		Constructor: StartServiceControllerWrapper,
 	},
+   /*
 	names.NodeRouteController: {
 		InitContext: ControllerInitContext{
 			ClientName: "route-controller",
 		},
 		Constructor: StartRouteControllerWrapper,
 	},
-
+    */
 	names.EndpointSliceController: {
 		InitContext: ControllerInitContext{
 			ClientName: "endpointslice-controller",
