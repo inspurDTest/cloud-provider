@@ -1073,11 +1073,12 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 		epsLablelSelector := labels.Set(map[string]string{
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
-		_, err := c.endpointSliceLister.EndpointSlices(service.Namespace).Get("wyd-tomcat-2-qd5s1")
+		oneEp, err := c.endpointSliceLister.EndpointSlices(service.Namespace).Get("wyd-tomcat-2-qd5s1")
 		if !apierrors.IsNotFound(err)  {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
 			return err
 		}
+		fmt.Errorf("OneEp is %v+", oneEp)
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
 		if !apierrors.IsNotFound(err)  {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
