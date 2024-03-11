@@ -1078,8 +1078,8 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
 			return err
 		}
-		fmt.Errorf("OneEp is %v+", oneEp)
-		fmt.Errorf("epsLablelSelector is %v+", epsLablelSelector)
+		klog.V(1).Infof("OneEp is %v+", oneEp)
+		klog.V(1).Infof("epsLablelSelector is %v+", epsLablelSelector)
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
 		if !apierrors.IsNotFound(err)  {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
