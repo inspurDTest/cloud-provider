@@ -1075,17 +1075,14 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 		epsLablelSelector := labels.Set(map[string]string{
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
-		oneEp, err := c.endpointSliceLister.EndpointSlices(service.Namespace).Get("wyd-tomcat-2-qd5s1")
-
-		klog.V(1).Infof("OneEp is %v,err:%v", oneEp,err)
-
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
 		klog.V(1).Infof("epss is %v,err:%v", epss,err)
-		if apierrors.IsNotFound(err)  {
+		if err != nil  && apierrors.IsNotFound(err)  {
+			runtime.HandleError(fmt.Errorf("Unable to retrieve eps by namesapce %v, labelSelector %v from store: %v", service.Namespace, epsLablelSelector, err))
 			return nil
 		}
-		if !apierrors.IsNotFound(err)  {
-			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
+		if err != nil  && !apierrors.IsNotFound(err)  {
+			runtime.HandleError(fmt.Errorf("Unable to retrieve eps by namesapce %v, labelSelector %v from store: %v", service.Namespace, key, err))
 			return err
 		}
 		// It is not safe to modify an object returned from an informer.
