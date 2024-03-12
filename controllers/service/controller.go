@@ -27,7 +27,7 @@ import (
 
 	cloudprovider "github.com/inspurDTest/cloud-provider"
 	"github.com/inspurDTest/cloud-provider/api"
-	endpointhelper "github.com/inspurDTest/cloud-provider/endpointslice/helpers"
+	endpointSliceHelper "github.com/inspurDTest/cloud-provider/endpointslice/helpers"
 	servicehelper "github.com/inspurDTest/cloud-provider/service/helpers"
 	v1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
@@ -676,7 +676,7 @@ func needsCleanup(service *v1.Service) bool {
 
 // epsNeedsCleanup checks if load balancer needs to be cleaned up as indicated by finalizer.
 func epsNeedsCleanup(eps *discoveryv1.EndpointSlice) bool {
-	if !endpointhelper.HasLBFinalizer(eps) {
+	if !endpointSliceHelper.HasLBFinalizer(eps) {
 		return false
 	}
 
@@ -1152,15 +1152,16 @@ func (c *Controller) addFinalizer(service *v1.Service) error {
 
 // addFinalizer patches the service to add finalizer.
 func (c *Controller) addEndpointSliceFinalizer(endpointslice *discoveryv1.EndpointSlice) error {
-	if endpointhelper.HasLBFinalizer(endpointslice) {
+	if endpointSliceHelper.HasLBFinalizer(endpointslice) {
 		return nil
 	}
 	// Make a copy so we don't mutate the shared informer cache.
 	updated := endpointslice.DeepCopy()
-	updated.ObjectMeta.Finalizers = append(updated.ObjectMeta.Finalizers, endpointhelper.LoadBalancerCleanupFinalizer)
+	updated.ObjectMeta.Finalizers = append(updated.ObjectMeta.Finalizers, endpointSliceHelper.LoadBalancerCleanupFinalizer)
 
-	klog.V(2).Infof("Adding finalizer to service %s/%s", updated.Namespace, updated.Name)
-	_, err := endpointhelper.PatchEndpointSlice(c.kubeClient.DiscoveryV1(), endpointslice, updated)
+	klog.V(2).Infof("Adding finalizer to endpointslice %s/%s", updated.Namespace, updated.Name)
+
+	_, err := endpointSliceHelper.PatchEndpointSlice(c.kubeClient.DiscoveryV1(), endpointslice, updated)
 	return err
 }
 
@@ -1208,16 +1209,16 @@ func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
 // TODO 处理remove endpointslice的finalizer
 // removeEndpointSliceFinalizer patches the endpointslice to remove finalizer.
 func (c *Controller) removeEndpointSliceFinalizer(endpointslice *discoveryv1.EndpointSlice) error {
-	if endpointhelper.HasLBFinalizer(endpointslice) {
+	if endpointSliceHelper.HasLBFinalizer(endpointslice) {
 		return nil
 	}
 
 	// Make a copy so we don't mutate the shared informer cache.
 	updated := endpointslice.DeepCopy()
-	updated.ObjectMeta.Finalizers = removeString(updated.ObjectMeta.Finalizers, endpointhelper.LoadBalancerCleanupFinalizer)
+	updated.ObjectMeta.Finalizers = removeString(updated.ObjectMeta.Finalizers, endpointSliceHelper.LoadBalancerCleanupFinalizer)
 
 	klog.V(2).Infof("Removing finalizer from endpointslice %s/%s", updated.Namespace, updated.Name)
-	_, err := endpointhelper.PatchEndpointSlice(c.kubeClient.DiscoveryV1(), endpointslice, updated)
+	_, err := endpointSliceHelper.PatchEndpointSlice(c.kubeClient.DiscoveryV1(), endpointslice, updated)
 	return err
 }
 
@@ -1267,9 +1268,17 @@ func removeAnnotationKey(annotation map[string]string, key string) map[string]st
 
 // patchStatus patches the service with the given LoadBalancerStatus.
 func (c *Controller) patchStatus(service *v1.Service, previousStatus, newStatus *v1.LoadBalancerStatus) error {
-	if servicehelper.LoadBalancerStatusEqual(previousStatus, newStatus) {
+	if previousStatus == nil && newStatus == nil{
 		return nil
 	}
+
+	// 相当于previousStatus != nil && newStatus != nil
+	if !(previousStatus == nil || newStatus == nil) {
+		if servicehelper.LoadBalancerStatusEqual(previousStatus, newStatus) {
+			return nil
+		}
+	}
+
 	// Make a copy so we don't mutate the shared informer cache.
 	updated := service.DeepCopy()
 	updated.Status.LoadBalancer = *newStatus
