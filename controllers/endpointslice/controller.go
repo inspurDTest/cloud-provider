@@ -61,7 +61,7 @@ type Controller struct {
 	clusterName string
 	balancer    cloudprovider.LoadBalancer
 	// TODO(#85155): Stop relying on this and remove the cache completely.
-	cache               *serviceCache
+	//cache               *serviceCache
 	serviceLister       corelisters.ServiceLister
 	endpointSliceLister discoverylisters.EndpointSliceLister
 	serviceListerSynced cache.InformerSynced

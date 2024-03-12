@@ -97,6 +97,7 @@ type Controller struct {
 	balancer    cloudprovider.LoadBalancer
 	// TODO(#85155): Stop relying on this and remove the cache completely.
 	cache                     *serviceCache
+	//endpointsliceCache nodesSynced cache.InformerSynced
 	serviceLister             corelisters.ServiceLister
 	endpointSliceLister       discoverylisters.EndpointSliceLister
 	serviceListerSynced       cache.InformerSynced
@@ -139,6 +140,7 @@ func New(
 		eventBroadcaster:   broadcaster,
 		eventRecorder:      recorder,
 		nodeLister:         nodeInformer.Lister(),
+		endpointSliceLister: endpointSliceInformer.Lister(),
 		nodeListerSynced:   nodeInformer.Informer().HasSynced,
 		serviceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "service"),
 		endpointsliceQueue: workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "endpointslice"),
@@ -199,7 +201,7 @@ func New(
 				oldEps, ok1 := old.(*discoveryv1.EndpointSlice)
 				curEps, ok2 := cur.(*discoveryv1.EndpointSlice)
 				if ok1 && ok2 && (epsHaveServiceName(oldEps) || epsHaveServiceName(curEps)) && (s.epsNeedsUpdate(oldEps, curEps) || epsNeedsCleanup(curEps)) {
-					klog.Info("endpoint update, enqueueService: %v")
+					klog.Info("endpoint update, enqueueService")
 					var svc *v1.Service
 					var err  error
 					if  epsHaveServiceName(curEps){
@@ -1074,13 +1076,14 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
 		oneEp, err := c.endpointSliceLister.EndpointSlices(service.Namespace).Get("wyd-tomcat-2-qd5s1")
-		if !apierrors.IsNotFound(err)  {
-			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
-			return err
-		}
-		klog.V(1).Infof("OneEp is %v+", oneEp)
-		klog.V(1).Infof("epsLablelSelector is %v+", epsLablelSelector)
+
+		klog.V(1).Infof("OneEp is %v,err:%v", oneEp,err)
+
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
+		klog.V(1).Infof("epss is %v,err:%v", epss,err)
+		if apierrors.IsNotFound(err)  {
+			return nil
+		}
 		if !apierrors.IsNotFound(err)  {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve service %v from store: %v", key, err))
 			return err
