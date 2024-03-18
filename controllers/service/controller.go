@@ -555,7 +555,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	}
 	klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
 
-	/*
+
 	// TODO 处理service的status,并且一处oldLBID
 	if err := c.patchStatus(service, previousStatus, newStatus); err != nil {
 		// Only retry error that isn't not found:
@@ -565,7 +565,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		if !apierrors.IsNotFound(err) {
 			return op, fmt.Errorf("failed to update load balancer status: %v", err)
 		}
-	}*/
+	}
 
 	return op, nil
 }
