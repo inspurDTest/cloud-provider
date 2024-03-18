@@ -509,13 +509,13 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		if len(oldLbID) != 0 {
 			err := c.processLoadBalancerDelete(ctx,service, "", oldLbID)
 			// only remove oldlbID，newstatus is remove all status. other  newstatus is add or update status
-			newStatus.Ingress = []v1.LoadBalancerIngress{}
+			newStatus = &v1.LoadBalancerStatus{}
 			if err != nil{
 				return op, fmt.Errorf("failed to delete  old load balancer,loadbalancer id: %s, err: %w", oldLbID, err)
 			}
 		}
 
-		//  处理新的oldLoadbalancer
+		//  处理新的new Loadbalancer
 		lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 		if len(lbID) != 0 {
 			newStatus, err = c.ensureLoadBalancer(ctx, service, endpointSlices, lbID)
