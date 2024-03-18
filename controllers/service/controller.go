@@ -1271,12 +1271,14 @@ func removeAnnotationKey(annotation map[string]string, key string) map[string]st
 // patchStatus patches the service with the given LoadBalancerStatus.
 func (c *Controller) patchStatus(service *v1.Service, previousStatus, newStatus *v1.LoadBalancerStatus) error {
 	if previousStatus == nil && newStatus == nil{
+		klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
 		return nil
 	}
 
-	// 相当于previousStatus != nil && newStatus != nil
-	if !(previousStatus == nil || newStatus == nil) {
+	if previousStatus != nil && newStatus != nil {
+		klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
 		if servicehelper.LoadBalancerStatusEqual(previousStatus, newStatus) {
+			klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
 			return nil
 		}
 	}
