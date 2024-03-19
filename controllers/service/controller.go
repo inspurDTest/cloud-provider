@@ -159,11 +159,15 @@ func New(
 				}
 			},
 			UpdateFunc: func(old, cur interface{}) {
+				/*
 				oldSvc, ok1 := old.(*v1.Service)
 				curSvc, ok2 := cur.(*v1.Service)
 				if ok1 && ok2 && (s.needsUpdate(oldSvc, curSvc) || needsCleanup(curSvc)) {
 					s.enqueueService(cur)
 				}
+				*/
+				// 兜底所有svc玉lb的绑定关系
+				s.enqueueService(cur)
 			},
 			// No need to handle deletion event because the deletion would be handled by
 			// the update path when the deletion timestamp is added.
@@ -1234,6 +1238,7 @@ func (c *Controller) removeEndpointSliceFinalizerByService(service *v1.Service) 
 	if err != nil {
 		return fmt.Errorf("syncLoadBalancerIfNeeded: failed to get endpoints : %v", err)
 	}
+	klog.V(1).Infof("get %d eps by svc %s", len(epss), service.Name)
 	for _, eps := range epss {
 		if epsNeedsCleanup(eps) {
 			if err := c.removeEndpointSliceFinalizer(eps); err != nil {
