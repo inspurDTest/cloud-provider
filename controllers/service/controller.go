@@ -441,7 +441,7 @@ type loadBalancerOperation int
 
 const (
 	deleteLoadBalancer loadBalancerOperation = iota
-	ensureLoadBalacer
+	ensureLoadBalancer
 	maxNodeNamesToLog = 20
 )
 
