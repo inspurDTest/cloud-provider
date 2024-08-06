@@ -159,15 +159,14 @@ func New(
 				}
 			},
 			UpdateFunc: func(old, cur interface{}) {
-				/*
+
 				oldSvc, ok1 := old.(*v1.Service)
 				curSvc, ok2 := cur.(*v1.Service)
 				if ok1 && ok2 && (s.needsUpdate(oldSvc, curSvc) || needsCleanup(curSvc)) {
 					s.enqueueService(cur)
 				}
-				*/
 				// 兜底所有svc玉lb的绑定关系
-				s.enqueueService(cur)
+				//s.enqueueService(cur)
 			},
 			// No need to handle deletion event because the deletion would be handled by
 			// the update path when the deletion timestamp is added.
@@ -442,7 +441,7 @@ type loadBalancerOperation int
 
 const (
 	deleteLoadBalancer loadBalancerOperation = iota
-	ensureLoadBalancer
+	ensureLoadBalacer
 	maxNodeNamesToLog = 20
 )
 
@@ -1151,7 +1150,7 @@ func (c *Controller) addFinalizer(service *v1.Service) error {
 	updated := service.DeepCopy()
 	updated.ObjectMeta.Finalizers = append(updated.ObjectMeta.Finalizers, servicehelper.LoadBalancerCleanupFinalizer)
 
-	klog.V(2).Infof("Adding finalizer to service %s/%s", updated.Namespace, updated.Name)
+	klog.V(1).Infof("Adding finalizer to service %s/%s", updated.Namespace, updated.Name)
 	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
 	return err
 }
@@ -1264,7 +1263,7 @@ func removeString(slice []string, s string) []string {
 // removeString returns a newly created []string that contains all items from slice that
 // are not equal to s.
 func removeAnnotationKey(annotation map[string]string, key string) map[string]string {
-	var newAnnotation map[string]string
+	 newAnnotation := make(map[string]string)
 	for oldAnnotation, value := range annotation {
 		if !strings.EqualFold(oldAnnotation, key){
 			newAnnotation[oldAnnotation] = value
