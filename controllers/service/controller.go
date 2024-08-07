@@ -179,9 +179,11 @@ func New(
 	endpointSliceInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(cur interface{}) {
-				klog.V(1).Infof("begin endpointSliceInformer--addFunc" )
+				// 王玉东屏蔽
+				//klog.V(1).Infof("begin endpointSliceInformer--addFunc" )
 				eps, ok := cur.(*discoveryv1.EndpointSlice)
-				klog.V(1).Infof("begin endpointSliceInformer--addFunc,eps:%v+",eps )
+				// 王玉东屏蔽
+				//klog.V(1).Infof("begin endpointSliceInformer--addFunc,eps:%v+",eps )
 				// Check cleanup here can provide a remedy when controller failed to handle
 				// changes before it exiting (e.g. crashing, restart, etc.).
 				// TODO 是否判断service是否有效,以及service
