@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 	"strings"
 	"sync"
@@ -74,7 +75,7 @@ const (
 
 	KubernetesServiceName = "kubernetes.io/service-name"
 
-	ServiceAnnotationLoadBalancerID = "loadbalancer.openstack.org/load-balancer-id"
+	ServiceAnnotationLoadBalancerID    = "loadbalancer.openstack.org/load-balancer-id"
 	ServiceAnnotationLoadBalancerOldID = "loadbalancer.openstack.org/load-balancer-old-id"
 )
 
@@ -96,7 +97,7 @@ type Controller struct {
 	clusterName string
 	balancer    cloudprovider.LoadBalancer
 	// TODO(#85155): Stop relying on this and remove the cache completely.
-	cache                     *serviceCache
+	cache *serviceCache
 	//endpointsliceCache nodesSynced cache.InformerSynced
 	serviceLister             corelisters.ServiceLister
 	endpointSliceLister       discoverylisters.EndpointSliceLister
@@ -133,19 +134,19 @@ func New(
 
 	registerMetrics()
 	s := &Controller{
-		cloud:              cloud,
-		kubeClient:         kubeClient,
-		clusterName:        clusterName,
-		cache:              &serviceCache{serviceMap: make(map[string]*cachedService)},
-		eventBroadcaster:   broadcaster,
-		eventRecorder:      recorder,
-		nodeLister:         nodeInformer.Lister(),
+		cloud:               cloud,
+		kubeClient:          kubeClient,
+		clusterName:         clusterName,
+		cache:               &serviceCache{serviceMap: make(map[string]*cachedService)},
+		eventBroadcaster:    broadcaster,
+		eventRecorder:       recorder,
+		nodeLister:          nodeInformer.Lister(),
 		endpointSliceLister: endpointSliceInformer.Lister(),
-		nodeListerSynced:   nodeInformer.Informer().HasSynced,
-		serviceQueue:       workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "service"),
-		endpointsliceQueue: workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "endpointslice"),
-		nodeQueue:          workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "node"),
-		lastSyncedNodes:    make(map[string][]*v1.Node),
+		nodeListerSynced:    nodeInformer.Informer().HasSynced,
+		serviceQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "service"),
+		endpointsliceQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "endpointslice"),
+		nodeQueue:           workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(minRetryDelay, maxRetryDelay), "node"),
+		lastSyncedNodes:     make(map[string][]*v1.Node),
 	}
 
 	serviceInformer.Informer().AddEventHandlerWithResyncPeriod(
@@ -189,14 +190,14 @@ func New(
 				// TODO 是否判断service是否有效,以及service
 				if ok && epsHaveServiceName(eps) {
 					// serviceName :=
-					svc ,err :=	serviceInformer.Lister().Services(eps.Namespace).Get(eps.Labels[KubernetesServiceName])
-					if err != nil || svc ==  nil {
+					svc, err := serviceInformer.Lister().Services(eps.Namespace).Get(eps.Labels[KubernetesServiceName])
+					if err != nil || svc == nil {
 						// TODO 判断err是否存在
 						return
 					}
 
 					// skip掉svc do not  belong lb 管理情况
-					if !(wantsLoadBalancer(svc) || needsCleanup(svc)){
+					if !(wantsLoadBalancer(svc) || needsCleanup(svc)) {
 						return
 					}
 					s.enqueueService(svc)
@@ -208,20 +209,20 @@ func New(
 				if ok1 && ok2 && (epsHaveServiceName(oldEps) || epsHaveServiceName(curEps)) && (s.epsNeedsUpdate(oldEps, curEps) || epsNeedsCleanup(curEps)) {
 					klog.Info("endpoint update, enqueueService")
 					var svc *v1.Service
-					var err  error
-					if  epsHaveServiceName(curEps){
-						svc ,err =	serviceInformer.Lister().Services(curEps.Namespace).Get(curEps.Labels[KubernetesServiceName])
-					}else if epsHaveServiceName(oldEps) {
-						svc ,err =	serviceInformer.Lister().Services(curEps.Namespace).Get(oldEps.Labels[KubernetesServiceName])
+					var err error
+					if epsHaveServiceName(curEps) {
+						svc, err = serviceInformer.Lister().Services(curEps.Namespace).Get(curEps.Labels[KubernetesServiceName])
+					} else if epsHaveServiceName(oldEps) {
+						svc, err = serviceInformer.Lister().Services(curEps.Namespace).Get(oldEps.Labels[KubernetesServiceName])
 					}
 
-					if err != nil || svc ==  nil {
+					if err != nil || svc == nil {
 						// TODO 判断err是否存在
 						return
 					}
 
 					// skip掉svc do not  belong lb 管理情况
-					if !(wantsLoadBalancer(svc) || needsCleanup(svc)){
+					if !(wantsLoadBalancer(svc) || needsCleanup(svc)) {
 						return
 					}
 					s.enqueueService(svc)
@@ -322,6 +323,12 @@ func (c *Controller) Run(ctx context.Context, workers int, controllerManagerMetr
 		return
 	}
 
+	cm, err := c.kubeClient.CoreV1().ConfigMaps("kube-system").Get(context.TODO(), "icks-cluster-info", metav1.GetOptions{})
+	if err == nil || cm == nil || cm.Data["cni"] == "calico" {
+		klog.Warningf("cloud-provider-openstack  not support cni: %v ", "calico")
+		runtime.HandleCrash()
+	}
+
 	for i := 0; i < workers; i++ {
 		go wait.UntilWithContext(ctx, c.serviceWorker, time.Second)
 	}
@@ -329,7 +336,7 @@ func (c *Controller) Run(ctx context.Context, workers int, controllerManagerMetr
 	// Initialize one go-routine servicing node events. This ensure we only
 	// process one node at any given moment in time
 	// TODO  wangyudong 屏蔽
-	 go wait.UntilWithContext(ctx, func(ctx context.Context) { c.nodeWorker(ctx, workers) }, time.Second)
+	go wait.UntilWithContext(ctx, func(ctx context.Context) { c.nodeWorker(ctx, workers) }, time.Second)
 
 	<-ctx.Done()
 }
@@ -469,8 +476,8 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		// TODO 处理旧的Loadbalancer 使用ensureLoadBalancerDeleted
 		oldLbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerOldID, "")
 		if len(oldLbID) != 0 {
-			err := c.processLoadBalancerDelete(ctx,service, "", oldLbID)
-			if err != nil{
+			err := c.processLoadBalancerDelete(ctx, service, "", oldLbID)
+			if err != nil {
 				return op, fmt.Errorf("failed to ensure load balancer'processLoadBalancerDelete err: %w", err)
 			}
 		}
@@ -478,8 +485,8 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		// TODO 处理新的Loadbalancer 使用ensureLoadBalancerDeleted
 		lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 		if len(lbID) != 0 {
-			err := c.processLoadBalancerDelete(ctx,service, "", lbID)
-			if err != nil{
+			err := c.processLoadBalancerDelete(ctx, service, "", lbID)
+			if err != nil {
 				return op, fmt.Errorf("failed to ensure load balancer'processLoadBalancerDelete err: %w", err)
 			}
 		}
@@ -503,7 +510,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 			return op, fmt.Errorf("failed to add load balancer cleanup finalizer: %v", err)
 		}
 
-		for _, eps := range endpointSlices{
+		for _, eps := range endpointSlices {
 			if err := c.addEndpointSliceFinalizer(eps); err != nil {
 				return op, fmt.Errorf("failed to add load balancer cleanup finalizer to eps:%+v, err: %v", eps, err)
 			}
@@ -512,10 +519,10 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		// 处理旧的oldLoadbalancer 使用ensureLoadBalancerDeleted
 		oldLbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerOldID, "")
 		if len(oldLbID) != 0 {
-			err := c.processLoadBalancerDelete(ctx,service, "", oldLbID)
+			err := c.processLoadBalancerDelete(ctx, service, "", oldLbID)
 			// only remove oldlbID，newstatus is remove all status. other  newstatus is add or update status
 			newStatus = &v1.LoadBalancerStatus{}
-			if err != nil{
+			if err != nil {
 				return op, fmt.Errorf("failed to delete  old load balancer,loadbalancer id: %s, err: %w", oldLbID, err)
 			}
 		}
@@ -532,7 +539,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 					klog.V(4).Infof("LoadBalancer for service %s implemented by a different controller %s, Ignoring error", key, c.cloud.ProviderName())
 					return op, nil
 				}
-				if strings.Contains(strings.ToLower(err.Error()),  "conflict"){
+				if strings.Contains(strings.ToLower(err.Error()), "conflict") {
 					// ImplementedElsewhere indicates that the ensureLoadBalancer is a nop and the
 					// functionality is implemented by a different controller.  In this case, we
 					// return immediately without doing anything.
@@ -559,7 +566,6 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		return op, err
 	}
 	klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
-
 
 	// TODO 处理service的status,并且一处oldLBID
 	if err := c.patchStatus(service, previousStatus, newStatus); err != nil {
@@ -1083,12 +1089,12 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
-		klog.V(1).Infof("epss is %v,err:%v", epss,err)
-		if err != nil  && apierrors.IsNotFound(err)  {
+		klog.V(1).Infof("epss is %v,err:%v", epss, err)
+		if err != nil && apierrors.IsNotFound(err) {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve eps by namesapce %v, labelSelector %v from store: %v", service.Namespace, epsLablelSelector, err))
 			return nil
 		}
-		if err != nil  && !apierrors.IsNotFound(err)  {
+		if err != nil && !apierrors.IsNotFound(err) {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve eps by namesapce %v, labelSelector %v from store: %v", service.Namespace, key, err))
 			return err
 		}
@@ -1178,7 +1184,7 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 	if !servicehelper.HasLBFinalizer(service) {
 		return nil
 	}
-    if !needsCleanup(service){
+	if !needsCleanup(service) {
 		return nil
 	}
 	// Make a copy so we don't mutate the shared informer cache.
@@ -1189,7 +1195,6 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
 	return err
 }
-
 
 // removeSvcOldLbId patches the service to remove finalizer.
 func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
@@ -1202,7 +1207,7 @@ func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
 	}
 
 	// ServiceAnnotationLoadBalancerOldID
-	if !servicehelper.HasAnnoation(service, ServiceAnnotationLoadBalancerOldID){
+	if !servicehelper.HasAnnoation(service, ServiceAnnotationLoadBalancerOldID) {
 		return nil
 	}
 
@@ -1213,7 +1218,6 @@ func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
 	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
 	return err
 }
-
 
 // TODO 处理remove endpointslice的finalizer
 // removeEndpointSliceFinalizer patches the endpointslice to remove finalizer.
@@ -1267,9 +1271,9 @@ func removeString(slice []string, s string) []string {
 // removeString returns a newly created []string that contains all items from slice that
 // are not equal to s.
 func removeAnnotationKey(annotation map[string]string, key string) map[string]string {
-	 newAnnotation := make(map[string]string)
+	newAnnotation := make(map[string]string)
 	for oldAnnotation, value := range annotation {
-		if !strings.EqualFold(oldAnnotation, key){
+		if !strings.EqualFold(oldAnnotation, key) {
 			newAnnotation[oldAnnotation] = value
 		}
 	}
@@ -1278,7 +1282,7 @@ func removeAnnotationKey(annotation map[string]string, key string) map[string]st
 
 // patchStatus patches the service with the given LoadBalancerStatus.
 func (c *Controller) patchStatus(service *v1.Service, previousStatus, newStatus *v1.LoadBalancerStatus) error {
-	if newStatus == nil{
+	if newStatus == nil {
 		klog.V(4).Infof("newStatus  %v", newStatus)
 		return nil
 	}
@@ -1393,6 +1397,7 @@ func respectsPredicates(node *v1.Node, predicates ...NodeConditionPredicate) boo
 	}
 	return true
 }
+
 // getStringFromServiceAnnotation searches a given v1.Service for a specific annotationKey and either returns the annotation's value or a specified defaultSetting
 func getStringFromServiceAnnotation(service *v1.Service, annotationKey string, defaultSetting string) string {
 	klog.V(4).Infof("getStringFromServiceAnnotation(%s/%s, %v, %v)", service.Namespace, service.Name, annotationKey, defaultSetting)
