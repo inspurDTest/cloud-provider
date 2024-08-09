@@ -1190,22 +1190,6 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 	return err
 }
 
-// removeFinalizer patches the service to remove finalizer.
-func (c *Controller) removeEPSFinalizer(ep *discoveryv1.EndpointSlice) error {
-	if !servicehelper.HasLBFinalizer(service) {
-		return nil
-	}
-	if !needsCleanup(service){
-		return nil
-	}
-	// Make a copy so we don't mutate the shared informer cache.
-	updated := service.DeepCopy()
-	updated.ObjectMeta.Finalizers = removeString(updated.ObjectMeta.Finalizers, servicehelper.LoadBalancerCleanupFinalizer)
-
-	klog.V(2).Infof("Removing finalizer from service %s/%s", updated.Namespace, updated.Name)
-	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
-	return err
-}
 
 // removeSvcOldLbId patches the service to remove finalizer.
 func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
