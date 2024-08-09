@@ -166,7 +166,7 @@ func New(
 					s.enqueueService(cur)
 				}
 				// 兜底所有svc玉lb的绑定关系
-				//s.enqueueService(cur)
+				s.enqueueService(cur)
 			},
 			// No need to handle deletion event because the deletion would be handled by
 			// the update path when the deletion timestamp is added.
