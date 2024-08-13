@@ -1076,6 +1076,16 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 		return err
 	}
 
+	cm, err := c.kubeClient.CoreV1().ConfigMaps("kube-system").Get(context.TODO(), "icks-cluster-info", metav1.GetOptions{})
+	if err != nil {
+		return  err
+	}
+	clusterId := cm.Data["clusterId"]
+	if len(clusterId) == 0 {
+		return fmt.Errorf("icks-cluster-info's configmap could not contain clusterId")
+	}
+	c.clusterName = clusterId
+
 	// service holds the latest service info from apiserver
 	service, err := c.serviceLister.Services(namespace).Get(name)
 	switch {
