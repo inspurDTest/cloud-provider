@@ -506,6 +506,10 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		if err := c.removeFinalizer(service); err != nil {
 			return op, fmt.Errorf("failed to remove load balancer cleanup finalizer: %v", err)
 		}
+		// remove new loadbalace annotation
+		if err := c.removeAnnotationLbId(service, ServiceAnnotationLoadBalancerID); err != nil {
+			return op, err
+		}
 
 		c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletedLoadBalancer", "Deleted load balancer")
 	} else {
@@ -564,7 +568,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 			}
 		}
 	}
-	c.eventRecorder.Event(service, v1.EventTypeNormal, "EnsuringLoadBalancer", "Ensuring load balancer")
+	//c.eventRecorder.Event(service, v1.EventTypeNormal, "EnsuringLoadBalancer", "Ensuring load balancer")
 
 	// remove  finalizer, when eps have DeletionTimestamp
 	if err := c.removeEndpointSliceFinalizerByService(service); err != nil {
@@ -572,7 +576,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	}
 
 	// remove old loadbalace annotation
-	if err := c.removeSvcOldLbId(service); err != nil {
+	if err := c.removeAnnotationLbId(service,ServiceAnnotationLoadBalancerOldID); err != nil {
 		return op, err
 	}
 	klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
@@ -1214,7 +1218,7 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 }
 
 // removeSvcOldLbId patches the service to remove finalizer.
-func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
+func (c *Controller) removeAnnotationLbId(service *v1.Service,annotation string) error {
 	if !servicehelper.HasLBFinalizer(service) {
 		return nil
 	}
@@ -1224,13 +1228,13 @@ func (c *Controller) removeSvcOldLbId(service *v1.Service) error {
 	}
 
 	// ServiceAnnotationLoadBalancerOldID
-	if !servicehelper.HasAnnoation(service, ServiceAnnotationLoadBalancerOldID) {
+	if !servicehelper.HasAnnoation(service, annotation) {
 		return nil
 	}
 
 	// Make a copy so we don't mutate the shared informer cache.
 	updated := service.DeepCopy()
-	updated.Annotations = removeAnnotationKey(updated.Annotations, ServiceAnnotationLoadBalancerOldID)
+	updated.Annotations = removeAnnotationKey(updated.Annotations, annotation)
 	klog.V(2).Infof("Removing old loadbalance annotation from service %s/%s", updated.Namespace, updated.Name)
 	_, err := servicehelper.PatchService(c.kubeClient.CoreV1(), service, updated)
 	return err
