@@ -160,13 +160,22 @@ func New(
 				}
 			},
 			UpdateFunc: func(old, cur interface{}) {
-				/*
+
 				oldSvc, ok1 := old.(*v1.Service)
 				curSvc, ok2 := cur.(*v1.Service)
-				if ok1 && ok2 && (s.needsUpdate(oldSvc, curSvc) || needsCleanup(curSvc)) {
-					s.enqueueService(cur)
+				if !(ok1 && ok2){
+					return
 				}
-				*/
+				oldSvcId := oldSvc.Annotations[ServiceAnnotationLoadBalancerID]
+				oldSvcNewId := oldSvc.Annotations[ServiceAnnotationLoadBalancerOldID]
+				newSvcId := curSvc.Annotations[ServiceAnnotationLoadBalancerID]
+				newSvcNewId := curSvc.Annotations[ServiceAnnotationLoadBalancerOldID]
+
+				if len(oldSvcId) ==  0 && len(oldSvcNewId) ==  0 &&
+				  len(newSvcId) ==  0 &&  len(newSvcNewId) ==  0{
+					return
+				}
+
 				// 兜底所有svc玉lb的绑定关系
 				s.enqueueService(cur)
 			},
@@ -1100,7 +1109,7 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 			discoveryv1.LabelServiceName: service.Name,
 		}).AsSelectorPreValidated()
 		epss, err := c.endpointSliceLister.EndpointSlices(service.Namespace).List(epsLablelSelector)
-		klog.V(1).Infof("epss is %v,err:%v", epss, err)
+		//klog.V(1).Infof("epss is %v,err:%v", epss, err)
 		if err != nil && apierrors.IsNotFound(err) {
 			runtime.HandleError(fmt.Errorf("Unable to retrieve eps by namesapce %v, labelSelector %v from store: %v", service.Namespace, epsLablelSelector, err))
 			return nil
@@ -1146,10 +1155,7 @@ func (c *Controller) processServiceDeletion(ctx context.Context, key string) err
 }
 
 func (c *Controller) processLoadBalancerDelete(ctx context.Context, service *v1.Service, key string, lbId string) error {
-	// delete load balancer info only if the service type is LoadBalancer
-	if !wantsLoadBalancer(service) {
-		return nil
-	}
+
 	c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
 	if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service, lbId); err != nil {
 		c.eventRecorder.Eventf(service, v1.EventTypeWarning, "DeleteLoadBalancerFailed", "Error deleting load balancer: %v", err)
@@ -1416,7 +1422,7 @@ func getStringFromServiceAnnotation(service *v1.Service, annotationKey string, d
 		//if there is an annotation for this setting, set the "setting" var to it
 		// annotationValue can be empty, it is working as designed
 		// it makes possible for instance provisioning loadbalancer without floatingip
-		klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, annotationValue)
+		//klog.V(4).Infof("Found a Service Annotation: %v = %v", annotationKey, annotationValue)
 		return annotationValue
 	}
 	//if there is no annotation, set "settings" var to the value from cloud config
