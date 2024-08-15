@@ -160,12 +160,13 @@ func New(
 				}
 			},
 			UpdateFunc: func(old, cur interface{}) {
-
+				/*
 				oldSvc, ok1 := old.(*v1.Service)
 				curSvc, ok2 := cur.(*v1.Service)
 				if ok1 && ok2 && (s.needsUpdate(oldSvc, curSvc) || needsCleanup(curSvc)) {
 					s.enqueueService(cur)
 				}
+				*/
 				// 兜底所有svc玉lb的绑定关系
 				s.enqueueService(cur)
 			},
