@@ -241,7 +241,7 @@ func New(
 			// No need to handle deletion event because the deletion would be handled by
 			// the update path when the deletion timestamp is added.
 		},
-		endpointSliceSyncPeriod,
+		30 * endpointSliceSyncPeriod,
 	)
 
 	s.endpointSliceLister = endpointSliceInformer.Lister()
@@ -1160,12 +1160,12 @@ func (c *Controller) processServiceDeletion(ctx context.Context, key string) err
 
 func (c *Controller) processLoadBalancerDelete(ctx context.Context, service *v1.Service, key string, lbId string) error {
 
-	c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
+	//c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
 	if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service, lbId); err != nil {
 		c.eventRecorder.Eventf(service, v1.EventTypeWarning, "DeleteLoadBalancerFailed", "Error deleting load balancer: %v", err)
 		return err
 	}
-	c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletedLoadBalancer", "Deleted load balancer")
+	//c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletedLoadBalancer", "Deleted load balancer")
 	return nil
 }
 
@@ -1220,7 +1220,7 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 // removeSvcOldLbId patches the service to remove finalizer.
 func (c *Controller) removeAnnotationLbId(service *v1.Service,annotation string) error {
 	if !servicehelper.HasLBFinalizer(service) {
-		return nil
+//		return nil
 	}
 
 	if service.ObjectMeta.DeletionTimestamp != nil {
