@@ -75,8 +75,8 @@ const (
 
 	KubernetesServiceName = "kubernetes.io/service-name"
 
-	ServiceAnnotationLoadBalancerID    = "loadbalancer.openstack.org/load-balancer-id"
-	ServiceAnnotationLoadBalancerOldID = "loadbalancer.openstack.org/load-balancer-old-id"
+	ServiceAnnotationLoadBalancerID    = "inspur.com/load-balancer-id"
+	ServiceAnnotationLoadBalancerOldID = "inspur.com/load-balancer-old-id"
 )
 
 type cachedService struct {
