@@ -171,9 +171,10 @@ func New(
 				newSvcId := curSvc.Annotations[ServiceAnnotationLoadBalancerID]
 				newSvcNewId := curSvc.Annotations[ServiceAnnotationLoadBalancerOldID]
 
-				if len(oldSvcId) ==  0 && len(oldSvcNewId) ==  0 &&
-				  len(newSvcId) ==  0 &&  len(newSvcNewId) ==  0{
-					return
+				if len(oldSvcId) == 0 && len(oldSvcNewId) == 0 &&
+					len(newSvcId) == 0 && len(newSvcNewId) == 0 &&
+						!(wantsLoadBalancer(curSvc) || needsCleanup(curSvc)) {
+					      return
 				}
 
 				// 兜底所有svc玉lb的绑定关系
