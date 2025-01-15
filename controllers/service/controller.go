@@ -176,7 +176,6 @@ func New(
 						!(wantsLoadBalancer(curSvc) || needsCleanup(curSvc)) {
 					      return
 				}
-
 				// 兜底所有svc玉lb的绑定关系
 				s.enqueueService(cur)
 			},
