@@ -163,7 +163,7 @@ func New(
 
 				oldSvc, ok1 := old.(*v1.Service)
 				curSvc, ok2 := cur.(*v1.Service)
-				if !(ok1 && ok2){
+				if !(ok1 && ok2) {
 					return
 				}
 				oldSvcId := oldSvc.Annotations[ServiceAnnotationLoadBalancerID]
@@ -173,8 +173,8 @@ func New(
 
 				if len(oldSvcId) == 0 && len(oldSvcNewId) == 0 &&
 					len(newSvcId) == 0 && len(newSvcNewId) == 0 &&
-						!(wantsLoadBalancer(curSvc) || needsCleanup(curSvc)) {
-					      return
+					!(wantsLoadBalancer(curSvc) || needsCleanup(curSvc)) {
+					return
 				}
 				// 兜底所有svc玉lb的绑定关系
 				s.enqueueService(cur)
@@ -241,7 +241,7 @@ func New(
 			// No need to handle deletion event because the deletion would be handled by
 			// the update path when the deletion timestamp is added.
 		},
-		30 * endpointSliceSyncPeriod,
+		30*endpointSliceSyncPeriod,
 	)
 
 	s.endpointSliceLister = endpointSliceInformer.Lister()
@@ -483,7 +483,6 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 		op = deleteLoadBalancer
 		newStatus = &v1.LoadBalancerStatus{}
 
-		// TODO 处理旧的Loadbalancer 使用ensureLoadBalancerDeleted
 		oldLbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerOldID, "")
 		if len(oldLbID) != 0 {
 			err := c.processLoadBalancerDelete(ctx, service, "", oldLbID)
@@ -492,7 +491,6 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 			}
 		}
 
-		// TODO 处理新的Loadbalancer 使用ensureLoadBalancerDeleted
 		lbID := getStringFromServiceAnnotation(service, ServiceAnnotationLoadBalancerID, "")
 		if len(lbID) != 0 {
 			err := c.processLoadBalancerDelete(ctx, service, "", lbID)
@@ -576,7 +574,7 @@ func (c *Controller) syncLoadBalancerIfNeeded(ctx context.Context, service *v1.S
 	}
 
 	// remove old loadbalace annotation
-	if err := c.removeAnnotationLbId(service,ServiceAnnotationLoadBalancerOldID); err != nil {
+	if err := c.removeAnnotationLbId(service, ServiceAnnotationLoadBalancerOldID); err != nil {
 		return op, err
 	}
 	klog.V(4).Infof("previousStatus  %v,newStatus %v", previousStatus, newStatus)
@@ -1092,7 +1090,7 @@ func (c *Controller) syncService(ctx context.Context, key string) error {
 
 	cm, err := c.kubeClient.CoreV1().ConfigMaps("kube-system").Get(context.TODO(), "icks-cluster-info", metav1.GetOptions{})
 	if err != nil {
-		return  err
+		return err
 	}
 	clusterId := cm.Data["clusterId"]
 	if len(clusterId) == 0 {
@@ -1162,6 +1160,10 @@ func (c *Controller) processLoadBalancerDelete(ctx context.Context, service *v1.
 
 	//c.eventRecorder.Event(service, v1.EventTypeNormal, "DeletingLoadBalancer", "Deleting load balancer")
 	if err := c.balancer.EnsureLoadBalancerDeleted(ctx, c.clusterName, service, lbId); err != nil {
+        if strings.Contains(err.Error(), "not found"){
+        	// ignore
+        	return nil
+		}
 		c.eventRecorder.Eventf(service, v1.EventTypeWarning, "DeleteLoadBalancerFailed", "Error deleting load balancer: %v", err)
 		return err
 	}
@@ -1218,9 +1220,9 @@ func (c *Controller) removeFinalizer(service *v1.Service) error {
 }
 
 // removeSvcOldLbId patches the service to remove finalizer.
-func (c *Controller) removeAnnotationLbId(service *v1.Service,annotation string) error {
+func (c *Controller) removeAnnotationLbId(service *v1.Service, annotation string) error {
 	if !servicehelper.HasLBFinalizer(service) {
-//		return nil
+		//		return nil
 	}
 
 	if service.ObjectMeta.DeletionTimestamp != nil {
